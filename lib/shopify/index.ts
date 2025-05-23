@@ -57,6 +57,7 @@ import {
   ShopifyRemoveFromCartOperation,
   ShopifyUpdateCartOperation
 } from './types';
+import { dummyMenu, dummyCollections, dummyProducts, dummyCart } from './dummy-data';
 
 const domain = process.env.SHOPIFY_STORE_DOMAIN
   ? ensureStartsWith(process.env.SHOPIFY_STORE_DOMAIN, 'https://')
@@ -77,45 +78,47 @@ export async function shopifyFetch<T>({
   query: string;
   variables?: ExtractVariables<T>;
 }): Promise<{ status: number; body: T } | never> {
-  try {
-    const result = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Storefront-Access-Token': key,
-        ...headers
-      },
-      body: JSON.stringify({
-        ...(query && { query }),
-        ...(variables && { variables })
-      })
-    });
+  // try {
+  //   const result = await fetch(endpoint, {
+  //     method: 'POST',
+  //     headers: {
+  //       'Content-Type': 'application/json',
+  //       'X-Shopify-Storefront-Access-Token': key,
+  //       ...headers
+  //     },
+  //     body: JSON.stringify({
+  //       ...(query && { query }),
+  //       ...(variables && { variables })
+  //     })
+  //   });
 
-    const body = await result.json();
+  //   const body = await result.json();
 
-    if (body.errors) {
-      throw body.errors[0];
-    }
+  //   if (body.errors) {
+  //     throw body.errors[0];
+  //   }
 
-    return {
-      status: result.status,
-      body
-    };
-  } catch (e) {
-    if (isShopifyError(e)) {
-      throw {
-        cause: e.cause?.toString() || 'unknown',
-        status: e.status || 500,
-        message: e.message,
-        query
-      };
-    }
+  //   return {
+  //     status: result.status,
+  //     body
+  //   };
+  // } catch (e) {
+  //   if (isShopifyError(e)) {
+  //     throw {
+  //       cause: e.cause?.toString() || 'unknown',
+  //       status: e.status || 500,
+  //       message: e.message,
+  //       query
+  //     };
+  //   }
 
-    throw {
-      error: e,
-      query
-    };
-  }
+  //   throw {
+  //     error: e,
+  //     query
+  //   };
+  // }
+  console.error('[DUMMY MODE] shopifyFetch was called unexpectedly!', { query, variables });
+  throw new Error('Shopify API calls are disabled in dummy mode.');
 }
 
 const removeEdgesAndNodes = <T>(array: Connection<T>): T[] => {
@@ -214,90 +217,103 @@ const reshapeProducts = (products: ShopifyProduct[]) => {
 };
 
 export async function createCart(): Promise<Cart> {
-  const res = await shopifyFetch<ShopifyCreateCartOperation>({
-    query: createCartMutation
-  });
+  // const res = await shopifyFetch<ShopifyCreateCartOperation>({
+  //   query: createCartMutation
+  // });
 
-  return reshapeCart(res.body.data.cartCreate.cart);
+  // return reshapeCart(res.body.data.cartCreate.cart);
+  console.log('[DUMMY MODE] createCart called');
+  return Promise.resolve(dummyCart);
 }
 
 export async function addToCart(
   lines: { merchandiseId: string; quantity: number }[]
 ): Promise<Cart> {
-  const cartId = (await cookies()).get('cartId')?.value!;
-  const res = await shopifyFetch<ShopifyAddToCartOperation>({
-    query: addToCartMutation,
-    variables: {
-      cartId,
-      lines
-    }
-  });
-  return reshapeCart(res.body.data.cartLinesAdd.cart);
+  // const cartId = (await cookies()).get('cartId')?.value!;
+  // const res = await shopifyFetch<ShopifyAddToCartOperation>({
+  //   query: addToCartMutation,
+  //   variables: {
+  //     cartId,
+  //     lines
+  //   }
+  // });
+  // return reshapeCart(res.body.data.cartLinesAdd.cart);
+  console.log('[DUMMY MODE] addToCart called with lines:', lines);
+  return Promise.resolve(dummyCart);
 }
 
 export async function removeFromCart(lineIds: string[]): Promise<Cart> {
-  const cartId = (await cookies()).get('cartId')?.value!;
-  const res = await shopifyFetch<ShopifyRemoveFromCartOperation>({
-    query: removeFromCartMutation,
-    variables: {
-      cartId,
-      lineIds
-    }
-  });
+  // const cartId = (await cookies()).get('cartId')?.value!;
+  // const res = await shopifyFetch<ShopifyRemoveFromCartOperation>({
+  //   query: removeFromCartMutation,
+  //   variables: {
+  //     cartId,
+  //     lineIds
+  //   }
+  // });
 
-  return reshapeCart(res.body.data.cartLinesRemove.cart);
+  // return reshapeCart(res.body.data.cartLinesRemove.cart);
+  console.log('[DUMMY MODE] removeFromCart called with lineIds:', lineIds);
+  return Promise.resolve(dummyCart);
 }
 
 export async function updateCart(
   lines: { id: string; merchandiseId: string; quantity: number }[]
 ): Promise<Cart> {
-  const cartId = (await cookies()).get('cartId')?.value!;
-  const res = await shopifyFetch<ShopifyUpdateCartOperation>({
-    query: editCartItemsMutation,
-    variables: {
-      cartId,
-      lines
-    }
-  });
+  // const cartId = (await cookies()).get('cartId')?.value!;
+  // const res = await shopifyFetch<ShopifyUpdateCartOperation>({
+  //   query: editCartItemsMutation,
+  //   variables: {
+  //     cartId,
+  //     lines
+  //   }
+  // });
 
-  return reshapeCart(res.body.data.cartLinesUpdate.cart);
+  // return reshapeCart(res.body.data.cartLinesUpdate.cart);
+  console.log('[DUMMY MODE] updateCart called with lines:', lines);
+  return Promise.resolve(dummyCart);
 }
 
 export async function getCart(): Promise<Cart | undefined> {
-  const cartId = (await cookies()).get('cartId')?.value;
+  // const cartId = (await cookies()).get('cartId')?.value;
 
-  if (!cartId) {
-    return undefined;
-  }
+  // if (!cartId) {
+  //   return undefined;
+  // }
 
-  const res = await shopifyFetch<ShopifyCartOperation>({
-    query: getCartQuery,
-    variables: { cartId }
-  });
+  // const res = await shopifyFetch<ShopifyCartOperation>({
+  //   query: getCartQuery,
+  //   variables: { cartId }
+  // });
 
-  // Old carts becomes `null` when you checkout.
-  if (!res.body.data.cart) {
-    return undefined;
-  }
+  // // Old carts becomes `null` when you checkout.
+  // if (!res.body.data.cart) {
+  //   return undefined;
+  // }
 
-  return reshapeCart(res.body.data.cart);
+  // return reshapeCart(res.body.data.cart);
+  console.log('[DUMMY MODE] getCart called');
+  return Promise.resolve(dummyCart);
 }
 
 export async function getCollection(
   handle: string
 ): Promise<Collection | undefined> {
-  'use cache';
-  cacheTag(TAGS.collections);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.collections);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyCollectionOperation>({
-    query: getCollectionQuery,
-    variables: {
-      handle
-    }
-  });
+  // const res = await shopifyFetch<ShopifyCollectionOperation>({
+  //   query: getCollectionQuery,
+  //   variables: {
+  //     handle
+  //   }
+  // });
 
-  return reshapeCollection(res.body.data.collection);
+  // return reshapeCollection(res.body.data.collection);
+  console.log('[DUMMY MODE] getCollection called for handle:', handle);
+  const collection = dummyCollections.find(c => c.handle === handle);
+  return Promise.resolve(collection);
 }
 
 export async function getCollectionProducts({
@@ -309,81 +325,88 @@ export async function getCollectionProducts({
   reverse?: boolean;
   sortKey?: string;
 }): Promise<Product[]> {
-  'use cache';
-  cacheTag(TAGS.collections, TAGS.products);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.collections, TAGS.products);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyCollectionProductsOperation>({
-    query: getCollectionProductsQuery,
-    variables: {
-      handle: collection,
-      reverse,
-      sortKey: sortKey === 'CREATED_AT' ? 'CREATED' : sortKey
-    }
-  });
+  // const res = await shopifyFetch<ShopifyCollectionProductsOperation>({
+  //   query: getCollectionProductsQuery,
+  //   variables: {
+  //     handle: collection,
+  //     reverse,
+  //     sortKey: sortKey === 'CREATED_AT' ? 'CREATED' : sortKey
+  //   }
+  // });
 
-  if (!res.body.data.collection) {
-    console.log(`No collection found for \`${collection}\``);
-    return [];
+  // if (!res.body.data.collection) {
+  //   console.log(`No collection found for \`${collection}\``);
+  //   return [];
+  // }
+
+  // return reshapeProducts(
+  //   removeEdgesAndNodes(res.body.data.collection.products)
+  // );
+  if (collection) {
+    const filtered = dummyProducts.filter(p => p.tags.includes(collection));
+    return Promise.resolve(filtered);
   }
-
-  return reshapeProducts(
-    removeEdgesAndNodes(res.body.data.collection.products)
-  );
+  return Promise.resolve(dummyProducts);
 }
 
 export async function getCollections(): Promise<Collection[]> {
-  'use cache';
-  cacheTag(TAGS.collections);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.collections);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyCollectionsOperation>({
-    query: getCollectionsQuery
-  });
-  const shopifyCollections = removeEdgesAndNodes(res.body?.data?.collections);
-  const collections = [
-    {
-      handle: '',
-      title: 'All',
-      description: 'All products',
-      seo: {
-        title: 'All',
-        description: 'All products'
-      },
-      path: '/search',
-      updatedAt: new Date().toISOString()
-    },
-    // Filter out the `hidden` collections.
-    // Collections that start with `hidden-*` need to be hidden on the search page.
-    ...reshapeCollections(shopifyCollections).filter(
-      (collection) => !collection.handle.startsWith('hidden')
-    )
-  ];
+  // const res = await shopifyFetch<ShopifyCollectionsOperation>({
+  //   query: getCollectionsQuery
+  // });
+  // const shopifyCollections = removeEdgesAndNodes(res.body?.data?.collections);
+  // const collections = [
+  //   {
+  //     handle: '',
+  //     title: 'All',
+  //     description: 'All products',
+  //     seo: {
+  //       title: 'All',
+  //       description: 'All products'
+  //     },
+  //     path: '/search',
+  //     updatedAt: new Date().toISOString()
+  //   },
+  //   // Filter out the `hidden` collections.
+  //   // Collections that start with `hidden-*` need to be hidden on the search page.
+  //   ...reshapeCollections(shopifyCollections).filter(
+  //     (collection) => !collection.handle.startsWith('hidden')
+  //   )
+  // ];
 
-  return collections;
+  // return collections;
+  return Promise.resolve(dummyCollections);
 }
 
 export async function getMenu(handle: string): Promise<Menu[]> {
-  'use cache';
-  cacheTag(TAGS.collections);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.collections);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyMenuOperation>({
-    query: getMenuQuery,
-    variables: {
-      handle
-    }
-  });
+  // const res = await shopifyFetch<ShopifyMenuOperation>({
+  //   query: getMenuQuery,
+  //   variables: {
+  //     handle
+  //   }
+  // });
 
-  return (
-    res.body?.data?.menu?.items.map((item: { title: string; url: string }) => ({
-      title: item.title,
-      path: item.url
-        .replace(domain, '')
-        .replace('/collections', '/search')
-        .replace('/pages', '')
-    })) || []
-  );
+  // return (
+  //   res.body?.data?.menu?.items.map((item: { title: string; url: string }) => ({
+  //     title: item.title,
+  //     path: item.url
+  //       .replace(domain, '')
+  //       .replace('/collections', '/search')
+  //       .replace('/pages', '')
+  //   })) || []
+  // );
+  return Promise.resolve(dummyMenu);
 }
 
 export async function getPage(handle: string): Promise<Page> {
@@ -404,35 +427,38 @@ export async function getPages(): Promise<Page[]> {
 }
 
 export async function getProduct(handle: string): Promise<Product | undefined> {
-  'use cache';
-  cacheTag(TAGS.products);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.products);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyProductOperation>({
-    query: getProductQuery,
-    variables: {
-      handle
-    }
-  });
+  // const res = await shopifyFetch<ShopifyProductOperation>({
+  //   query: getProductQuery,
+  //   variables: {
+  //     handle
+  //   }
+  // });
 
-  return reshapeProduct(res.body.data.product, false);
+  // return reshapeProduct(res.body.data.product, false);
+  const product = dummyProducts.find(p => p.handle === handle);
+  return Promise.resolve(product);
 }
 
 export async function getProductRecommendations(
   productId: string
 ): Promise<Product[]> {
-  'use cache';
-  cacheTag(TAGS.products);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.products);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyProductRecommendationsOperation>({
-    query: getProductRecommendationsQuery,
-    variables: {
-      productId
-    }
-  });
+  // const res = await shopifyFetch<ShopifyProductRecommendationsOperation>({
+  //   query: getProductRecommendationsQuery,
+  //   variables: {
+  //     productId
+  //   }
+  // });
 
-  return reshapeProducts(res.body.data.productRecommendations);
+  // return reshapeProducts(res.body.data.productRecommendations);
+  return Promise.resolve(dummyProducts.slice(0, 1)); // Simple recommendation
 }
 
 export async function getProducts({
@@ -444,20 +470,21 @@ export async function getProducts({
   reverse?: boolean;
   sortKey?: string;
 }): Promise<Product[]> {
-  'use cache';
-  cacheTag(TAGS.products);
-  cacheLife('days');
+  // 'use cache';
+  // cacheTag(TAGS.products);
+  // cacheLife('days');
 
-  const res = await shopifyFetch<ShopifyProductsOperation>({
-    query: getProductsQuery,
-    variables: {
-      query,
-      reverse,
-      sortKey
-    }
-  });
+  // const res = await shopifyFetch<ShopifyProductsOperation>({
+  //   query: getProductsQuery,
+  //   variables: {
+  //     query,
+  //     reverse,
+  //     sortKey
+  //   }
+  // });
 
-  return reshapeProducts(removeEdgesAndNodes(res.body.data.products));
+  // return reshapeProducts(removeEdgesAndNodes(res.body.data.products));
+  return Promise.resolve(dummyProducts);
 }
 
 // This is called from `app/api/revalidate.ts` so providers can control revalidation logic.
