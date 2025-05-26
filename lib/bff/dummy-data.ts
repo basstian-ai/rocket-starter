@@ -50,27 +50,27 @@ export const dummyProducts: Product[] = [
       maxVariantPrice: { amount: '29.99', currencyCode: 'USD' },
       minVariantPrice: { amount: '19.99', currencyCode: 'USD' }
     },
-    variants: [
-      {
+    variants: { edges: [
+      { node: {
         id: 'gid://shopify/ProductVariant/101',
         title: 'S',
         availableForSale: true,
         selectedOptions: [{ name: 'Size', value: 'S' }],
         price: { amount: '19.99', currencyCode: 'USD' }
-      },
-      {
+      }},
+      { node: {
         id: 'gid://shopify/ProductVariant/102',
         title: 'M',
         availableForSale: true,
         selectedOptions: [{ name: 'Size', value: 'M' }],
         price: { amount: '24.99', currencyCode: 'USD' }
-      }
-    ],
+      }}
+    ] }, // Removed extra } here by ensuring variants is a property of the product node.
     featuredImage: { url: 'https://via.placeholder.com/300x300.png?text=Dummy+Product+1', altText: 'Dummy Product 1', width: 300, height: 300 },
-    images: [
-      { url: 'https://via.placeholder.com/600x600.png?text=Dummy+Product+1_Image1', altText: 'Dummy Product 1 Image 1', width: 600, height: 600 },
-      { url: 'https://via.placeholder.com/600x600.png?text=Dummy+Product+1_Image2', altText: 'Dummy Product 1 Image 2', width: 600, height: 600 }
-    ],
+    images: { edges: [
+      { node: { url: 'https://via.placeholder.com/600x600.png?text=Dummy+Product+1_Image1', altText: 'Dummy Product 1 Image 1', width: 600, height: 600 }},
+      { node: { url: 'https://via.placeholder.com/600x600.png?text=Dummy+Product+1_Image2', altText: 'Dummy Product 1 Image 2', width: 600, height: 600 }}
+    ] }, // Removed extra } here
     seo: { title: 'Dummy Product 1', description: 'Description for Dummy Product 1' },
     tags: ['dummy', 'featured-items'], // Added featured-items tag
     updatedAt: new Date().toISOString()
@@ -87,17 +87,17 @@ export const dummyProducts: Product[] = [
       maxVariantPrice: { amount: '45.00', currencyCode: 'USD' },
       minVariantPrice: { amount: '45.00', currencyCode: 'USD' }
     },
-    variants: [
-       {
+    variants: { edges: [
+       { node: {
         id: 'gid://shopify/ProductVariant/201',
         title: 'Red',
         availableForSale: true,
         selectedOptions: [{ name: 'Color', value: 'Red' }],
         price: { amount: '45.00', currencyCode: 'USD' }
-      }
-    ],
+      }}
+    ] }, // Removed extra } here
     featuredImage: { url: 'https://via.placeholder.com/300x300.png?text=Dummy+Product+2', altText: 'Dummy Product 2', width: 300, height: 300 },
-    images: [{ url: 'https://via.placeholder.com/600x600.png?text=Dummy+Product+2_Image1', altText: 'Dummy Product 2 Image 1', width: 600, height: 600 }],
+    images: { edges: [{ node: { url: 'https://via.placeholder.com/600x600.png?text=Dummy+Product+2_Image1', altText: 'Dummy Product 2 Image 1', width: 600, height: 600 }}] }, // Removed extra } here
     seo: { title: 'Dummy Product 2', description: 'Description for Dummy Product 2' },
     tags: ['dummy', 'summer-collection'],
     updatedAt: new Date().toISOString()
@@ -112,6 +112,6 @@ export const dummyCart: Cart = {
     totalAmount: { amount: '0.00', currencyCode: 'USD' },
     totalTaxAmount: { amount: '0.00', currencyCode: 'USD' }
   },
-  lines: [],
+  lines: { edges: [] },
   totalQuantity: 0
 };
