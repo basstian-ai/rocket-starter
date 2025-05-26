@@ -98,6 +98,11 @@ export function AddToCart({ product }: { product: Product }) {
       <p aria-live="polite" className="sr-only" role="status">
         {message}
       </p>
+      {message && (
+        <p className="mt-2 text-sm text-red-600" role="alert">
+          {message}
+        </p>
+      )}
     </form>
   );
 }

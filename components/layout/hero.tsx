@@ -1,5 +1,11 @@
 import Link from 'next/link';
 
+/**
+ * Renders the main hero section for the homepage.
+ * It typically includes a background image, a headline, a short description,
+ * and a call-to-action button linking to the search page.
+ * This is a presentational component and does not fetch any data.
+ */
 export function Hero() {
   // Placeholder for the Hero component JSX
   return (
