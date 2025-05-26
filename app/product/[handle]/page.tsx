@@ -7,8 +7,8 @@ import { Gallery } from 'components/product/gallery';
 import { ProductProvider } from 'components/product/product-context';
 import { ProductDescription } from 'components/product/product-description';
 import { HIDDEN_PRODUCT_TAG } from 'lib/constants';
-import { getProduct, getProductRecommendations } from 'lib/shopify';
-import { Image } from 'lib/shopify/types';
+import { getProduct, getProductRecommendations } from 'lib/bff';
+import { Image } from 'lib/bff/types';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
@@ -89,10 +89,7 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
               }
             >
               <Gallery
-                images={product.images.slice(0, 5).map((image: Image) => ({
-                  src: image.url,
-                  altText: image.altText
-                }))}
+                images={product.images.edges.map(edge => ({ src: edge.node.url, altText: edge.node.altText })).slice(0, 5)}
               />
             </Suspense>
           </div>

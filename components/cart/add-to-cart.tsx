@@ -4,7 +4,7 @@ import { PlusIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { addItem } from 'components/cart/actions';
 import { useProduct } from 'components/product/product-context';
-import { Product, ProductVariant } from 'lib/shopify/types';
+import { Product, ProductVariant } from 'lib/bff/types';
 import { useActionState } from 'react';
 import { useCart } from './cart-context';
 
@@ -63,21 +63,30 @@ export function AddToCart({ product }: { product: Product }) {
   const { state } = useProduct();
   const [message, formAction] = useActionState(addItem, null);
 
-  const variant = variants.find((variant: ProductVariant) =>
-    variant.selectedOptions.every(
+  const variantEdge = variants.edges.find(edge =>
+    edge.node.selectedOptions.every(
       (option) => option.value === state[option.name.toLowerCase()]
     )
   );
-  const defaultVariantId = variants.length === 1 ? variants[0]?.id : undefined;
+  const variant = variantEdge?.node;
+
+  const defaultVariantId = variants.edges.length === 1 ? variants.edges[0]?.node.id : undefined;
   const selectedVariantId = variant?.id || defaultVariantId;
   const addItemAction = formAction.bind(null, selectedVariantId);
-  const finalVariant = variants.find(
-    (variant) => variant.id === selectedVariantId
-  )!;
+
+  const finalVariantEdge = variants.edges.find(
+    (edge) => edge.node.id === selectedVariantId
+  );
+  const finalVariant = finalVariantEdge?.node;
 
   return (
     <form
       action={async () => {
+        if (!finalVariant) {
+          // TODO: Handle case where finalVariant is not found, maybe show an error
+          console.error("Selected variant not found for cart addition");
+          return;
+        }
         addCartItem(finalVariant, product);
         addItemAction();
       }}

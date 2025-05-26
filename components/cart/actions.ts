@@ -7,7 +7,7 @@ import {
   getCart,
   removeFromCart,
   updateCart
-} from 'lib/shopify';
+} from 'lib/bff';
 import { revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -36,9 +36,10 @@ export async function removeItem(prevState: any, merchandiseId: string) {
       return 'Error fetching cart';
     }
 
-    const lineItem = cart.lines.find(
-      (line) => line.merchandise.id === merchandiseId
+    const lineItemEdge = cart.lines.edges.find(
+      (edge) => edge.node.merchandise.id === merchandiseId
     );
+    const lineItem = lineItemEdge?.node;
 
     if (lineItem && lineItem.id) {
       await removeFromCart([lineItem.id]);
@@ -67,9 +68,10 @@ export async function updateItemQuantity(
       return 'Error fetching cart';
     }
 
-    const lineItem = cart.lines.find(
-      (line) => line.merchandise.id === merchandiseId
+    const lineItemEdge = cart.lines.edges.find(
+      (edge) => edge.node.merchandise.id === merchandiseId
     );
+    const lineItem = lineItemEdge?.node;
 
     if (lineItem && lineItem.id) {
       if (quantity === 0) {
