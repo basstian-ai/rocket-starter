@@ -3,9 +3,10 @@
 import type {
   Cart,
   CartItem,
+  Edge, // Added Edge import
   Product,
   ProductVariant
-} from 'lib/shopify/types';
+} from 'lib/bff/types';
 import React, {
   createContext,
   use,
@@ -121,7 +122,7 @@ function createEmptyCart(): Cart {
     id: undefined,
     checkoutUrl: '',
     totalQuantity: 0,
-    lines: [],
+    lines: { edges: [] },
     cost: {
       subtotalAmount: { amount: '0', currencyCode: 'USD' },
       totalAmount: { amount: '0', currencyCode: 'USD' },
@@ -136,18 +137,23 @@ function cartReducer(state: Cart | undefined, action: CartAction): Cart {
   switch (action.type) {
     case 'UPDATE_ITEM': {
       const { merchandiseId, updateType } = action.payload;
-      const updatedLines = currentCart.lines
-        .map((item) =>
-          item.merchandise.id === merchandiseId
-            ? updateCartItem(item, updateType)
-            : item
-        )
-        .filter(Boolean) as CartItem[];
+      const updatedLineEdges = currentCart.lines.edges
+        .map((edge) => {
+          if (edge.node.merchandise.id === merchandiseId) {
+            const updatedNode = updateCartItem(edge.node, updateType);
+            // If updatedNode is null, it means the item's quantity became 0 and should be removed.
+            return updatedNode ? { ...edge, node: updatedNode } : null;
+          }
+          return edge;
+        })
+        .filter(Boolean) as Edge<CartItem>[]; // Filter out nulls (removed items)
 
-      if (updatedLines.length === 0) {
+      const updatedLinesNodes = updatedLineEdges.map(edge => edge.node);
+
+      if (updatedLinesNodes.length === 0) {
         return {
           ...currentCart,
-          lines: [],
+          lines: { edges: [] }, // Ensure lines is a Connection object
           totalQuantity: 0,
           cost: {
             ...currentCart.cost,
@@ -158,31 +164,45 @@ function cartReducer(state: Cart | undefined, action: CartAction): Cart {
 
       return {
         ...currentCart,
-        ...updateCartTotals(updatedLines),
-        lines: updatedLines
+        ...updateCartTotals(updatedLinesNodes),
+        lines: { edges: updatedLineEdges } // Reconstruct Connection object
       };
     }
     case 'ADD_ITEM': {
       const { variant, product } = action.payload;
-      const existingItem = currentCart.lines.find(
-        (item) => item.merchandise.id === variant.id
+      const existingItemEdge = currentCart.lines.edges.find(
+        (edge) => edge.node.merchandise.id === variant.id
       );
+      const existingItem = existingItemEdge?.node;
       const updatedItem = createOrUpdateCartItem(
-        existingItem,
+        existingItem, // This can be undefined
         variant,
         product
       );
 
-      const updatedLines = existingItem
-        ? currentCart.lines.map((item) =>
-            item.merchandise.id === variant.id ? updatedItem : item
-          )
-        : [...currentCart.lines, updatedItem];
+      let newEdges: Edge<CartItem>[];
+      if (existingItemEdge) {
+        // Update existing item
+        newEdges = currentCart.lines.edges.map((edge) =>
+          edge.node.merchandise.id === variant.id ? { ...edge, node: updatedItem } : edge
+        );
+      } else {
+        // Add new item as a new edge
+        // We need a proper Edge<CartItem> structure.
+        // Assuming CartItem's id might be undefined initially if it's a new item.
+        // The `createOrUpdateCartItem` function should handle setting the ID if it exists or is new.
+        // For a new edge, we might need to create a new ID or ensure the structure is correct.
+        // For simplicity, let's assume updatedItem is a complete CartItem.
+        // A proper Edge would have a 'cursor' or similar, but not strictly necessary for client-side optimistic updates if not used.
+        newEdges = [...currentCart.lines.edges, { node: updatedItem }];
+      }
+      
+      const newNodes = newEdges.map(edge => edge.node);
 
       return {
         ...currentCart,
-        ...updateCartTotals(updatedLines),
-        lines: updatedLines
+        ...updateCartTotals(newNodes),
+        lines: { edges: newEdges }
       };
     }
     default:

@@ -82,7 +82,7 @@ export default function CartModal() {
                 </button>
               </div>
 
-              {!cart || cart.lines.length === 0 ? (
+              {!cart || cart.lines.edges.length === 0 ? (
                 <div className="mt-20 flex w-full flex-col items-center justify-center overflow-hidden">
                   <ShoppingCartIcon className="h-16" />
                   <p className="mt-6 text-center text-2xl font-bold">
@@ -92,13 +92,14 @@ export default function CartModal() {
               ) : (
                 <div className="flex h-full flex-col justify-between overflow-hidden p-1">
                   <ul className="grow overflow-auto py-4">
-                    {cart.lines
+                    {cart.lines.edges
                       .sort((a, b) =>
-                        a.merchandise.product.title.localeCompare(
-                          b.merchandise.product.title
+                        a.node.merchandise.product.title.localeCompare(
+                          b.node.merchandise.product.title
                         )
                       )
-                      .map((item, i) => {
+                      .map((edge, i) => {
+                        const item = edge.node;
                         const merchandiseSearchParams =
                           {} as MerchandiseSearchParams;
 
