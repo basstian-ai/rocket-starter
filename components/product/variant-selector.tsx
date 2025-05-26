@@ -2,7 +2,7 @@
 
 import clsx from 'clsx';
 import { useProduct, useUpdateURL } from 'components/product/product-context';
-import { ProductOption, ProductVariant } from 'lib/shopify/types';
+import { Connection, ProductOption, ProductVariant } from 'lib/bff/types';
 
 type Combination = {
   id: string;
@@ -15,7 +15,7 @@ export function VariantSelector({
   variants
 }: {
   options: ProductOption[];
-  variants: ProductVariant[];
+  variants: Connection<ProductVariant>; // Changed type here
 }) {
   const { state, updateOption } = useProduct();
   const updateURL = useUpdateURL();
@@ -26,11 +26,11 @@ export function VariantSelector({
     return null;
   }
 
-  const combinations: Combination[] = variants.map((variant) => ({
-    id: variant.id,
-    availableForSale: variant.availableForSale,
-    ...variant.selectedOptions.reduce(
-      (accumulator, option) => ({ ...accumulator, [option.name.toLowerCase()]: option.value }),
+  const combinations: Combination[] = variants.edges.map((edge) => ({
+    id: edge.node.id,
+    availableForSale: edge.node.availableForSale,
+    ...edge.node.selectedOptions.reduce(
+      (accumulator, selectedOption) => ({ ...accumulator, [selectedOption.name.toLowerCase()]: selectedOption.value }),
       {}
     )
   }));
