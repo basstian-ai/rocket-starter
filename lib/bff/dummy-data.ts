@@ -13,7 +13,8 @@ export const dummyCollections: Collection[] = [
     description: 'Bright and sunny items for summer.',
     path: '/search/summer-collection',
     updatedAt: new Date().toISOString(),
-    seo: { title: 'Summer Collection', description: 'Our summer items.'}
+    seo: { title: 'Summer Collection', description: 'Our summer items.'},
+    featuredImage: { url: 'https://via.placeholder.com/400x300.png?text=Summer+Collection', altText: 'Image for Summer Collection', width: 400, height: 300 }
   },
   {
     handle: 'featured-items',
@@ -21,7 +22,8 @@ export const dummyCollections: Collection[] = [
     description: 'Hand-picked featured items.',
     path: '/search/featured-items',
     updatedAt: new Date().toISOString(),
-    seo: { title: 'Featured Items', description: 'Check out our featured items.'}
+    seo: { title: 'Featured Items', description: 'Check out our featured items.'},
+    featuredImage: { url: 'https://via.placeholder.com/400x300.png?text=Featured+Items', altText: 'Image for Featured Items', width: 400, height: 300 }
   },
   // Add a default "All" collection to match existing behavior if needed
   {

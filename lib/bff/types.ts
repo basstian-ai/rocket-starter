@@ -101,6 +101,7 @@ export type Collection = {
   seo: SEO;
   updatedAt: string;
   path: string; // Added path property
+  featuredImage?: Image; // Added optional featuredImage property
 };
 
 export type Product = {
