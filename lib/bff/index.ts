@@ -7,9 +7,10 @@ import {
   Image,      // Un-commented
   Menu,
   Page,
-  Product
+  Product,
+  Article // Added Article type
 } from './types';
-import { dummyMenu, dummyCollections, dummyProducts, dummyCart } from './dummy-data';
+import { dummyMenu, dummyCollections, dummyProducts, dummyCart, dummyArticles } from './dummy-data'; // Added dummyArticles
 
 export async function createCart(): Promise<Cart> {
   return Promise.resolve(dummyCart);
@@ -166,4 +167,15 @@ export async function getProducts({
 // This is called from `app/api/revalidate.ts` so providers can control revalidation logic.
 export async function revalidate(req: any): Promise<NextResponse> {
   return NextResponse.json({ status: 200, message: 'Revalidation not applicable in BFF mode' });
+}
+
+// New function to get all articles
+export async function getArticles(): Promise<Article[]> {
+  return Promise.resolve(dummyArticles);
+}
+
+// New function to get a single article by handle
+export async function getArticle(handle: string): Promise<Article | undefined> {
+  const article = dummyArticles.find((a) => a.handle === handle);
+  return Promise.resolve(article);
 }

@@ -122,4 +122,22 @@ export type Product = {
   seo: SEO;
   tags: string[];
   updatedAt: string;
+  brand?: string; // Added optional brand property
+  category?: string; // Added optional category property
+};
+
+export type Article = {
+  id: string;
+  handle: string;
+  title: string;
+  body: string;
+  tags: string[];
+  seo?: SEO; // Reusing existing SEO type
+  featuredImage?: Image; // Optional featured image
+  author?: { // Optional author information
+    name: string;
+    // email?: string; // Example: if author email was available
+  };
+  createdAt?: string; // Optional creation date
+  updatedAt?: string; // Optional update date
 };
