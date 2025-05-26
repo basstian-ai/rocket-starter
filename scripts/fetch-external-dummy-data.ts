@@ -65,7 +65,7 @@ function transformProduct(dummyProduct: RawProduct): any { // Return type change
     height: 600,
   }));
 
-  return {
+  const product = { // Assign to 'product' variable
     id: `gid://dummyjson/Product/${dummyProduct.id}`,
     handle: slugify(dummyProduct.title),
     availableForSale: dummyProduct.stock > 0,
@@ -103,6 +103,22 @@ function transformProduct(dummyProduct: RawProduct): any { // Return type change
     brand: dummyProduct.brand,
     category: dummyProduct.category,
   };
+
+  // Add conditional tags
+  if (dummyProduct.id === 1) {
+    product.tags.push('hidden-homepage-featured-items');
+  }
+  if (dummyProduct.id === 2) {
+    product.tags.push('hidden-homepage-featured-items');
+  }
+  if (dummyProduct.id === 3) {
+    product.tags.push('hidden-homepage-featured-items');
+  }
+  if (dummyProduct.id >= 4 && dummyProduct.id <= 8) {
+    product.tags.push('hidden-homepage-carousel');
+  }
+
+  return product; // Return the 'product' variable
 }
 
 // transformPost will return an object structurally compatible with BffArticle
