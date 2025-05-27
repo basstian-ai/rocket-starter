@@ -1,8 +1,10 @@
 import { Bootstrapper } from '@crystallize/import-utilities';
-import spec from './crystallize_import_spec_tools_products.json' assert { type: 'json' };
+import spec from './crystallize_import_spec_tools_products.json' with { type: 'json' };
 import dotenv from 'dotenv';
 
-dotenv.config();
+if (process.env.CI !== 'true') {
+  dotenv.config();
+}
 
 if (!process.env.TENANT_ID || !process.env.ACCESS_TOKEN_ID || !process.env.ACCESS_TOKEN_SECRET) {
   console.error('Error: Missing Crystallize credentials in .env file. Please ensure TENANT_ID, ACCESS_TOKEN_ID, and ACCESS_TOKEN_SECRET are set.');
