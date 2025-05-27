@@ -24,9 +24,6 @@ export async function CategoryShowcase() {
     <section className="py-12 sm:py-16 lg:py-20 bg-white dark:bg-gray-900">
       <div className="mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8">
         {/* Optional: Add a title for the section if desired */}
-        {/* <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl lg:text-4xl mb-8 sm:mb-10 lg:mb-12 text-center">
-          Shop by Category
-        </h2> */}
         <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6">
           {displayCollections.map((collection) => (
             <Link
