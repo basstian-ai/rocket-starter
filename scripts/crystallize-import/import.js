@@ -1,5 +1,5 @@
 import { Bootstrapper } from '@crystallize/import-utilities';
-import spec from './crystallize_import_spec_tools_products.json' assert { type: 'json' };
+import spec from './crystallize_import_spec_tools_products.json' with { type: 'json' };
 import dotenv from 'dotenv';
 
 if (process.env.CI !== 'true') {
