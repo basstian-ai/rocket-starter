@@ -1,1 +1,498 @@
-{}
+{
+  "items": [
+    {
+      "name": "Kombinasjonstang 180mm",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Allsidig tang for elektrisk arbeid"
+          }
+        },
+        "brand": {
+          "text": "Knipex"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Kombinasjonstang 180mm",
+          "sku": "HVT-001",
+          "price": {
+            "currency": "NOK",
+            "amount": 249
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Skrutrekker PH2 100mm",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Phillips skrutrekker med magnetisk spiss"
+          }
+        },
+        "brand": {
+          "text": "Bahco"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Skrutrekker PH2 100mm",
+          "sku": "HVT-002",
+          "price": {
+            "currency": "NOK",
+            "amount": 89
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Justerbar skiften\u00f8kkel 250mm",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Robust skiften\u00f8kkel for r\u00f8rarbeid"
+          }
+        },
+        "brand": {
+          "text": "Stanley"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Justerbar skiften\u00f8kkel 250mm",
+          "sku": "HVT-003",
+          "price": {
+            "currency": "NOK",
+            "amount": 199
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Hammer 16oz med glassfiberskaft",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Slagfast hammer for snekkerarbeid"
+          }
+        },
+        "brand": {
+          "text": "Fiskars"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Hammer 16oz med glassfiberskaft",
+          "sku": "HVT-004",
+          "price": {
+            "currency": "NOK",
+            "amount": 179
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Avbitertang 160mm",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Presis avbitertang for finarbeid"
+          }
+        },
+        "brand": {
+          "text": "Irwin"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Avbitertang 160mm",
+          "sku": "HVT-005",
+          "price": {
+            "currency": "NOK",
+            "amount": 149
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Torx skrutrekkersett T10-T40",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Sett med 6 Torx skrutrekkere"
+          }
+        },
+        "brand": {
+          "text": "Wera"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Torx skrutrekkersett T10-T40",
+          "sku": "HVT-006",
+          "price": {
+            "currency": "NOK",
+            "amount": 299
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Unbrakon\u00f8kkelsett 1.5-10mm",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Sett med 9 unbrakon\u00f8kler"
+          }
+        },
+        "brand": {
+          "text": "HexPro"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Unbrakon\u00f8kkelsett 1.5-10mm",
+          "sku": "HVT-007",
+          "price": {
+            "currency": "NOK",
+            "amount": 129
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Borskrutrekker 18V",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Batteridrevet borskrutrekker med 2 batterier"
+          }
+        },
+        "brand": {
+          "text": "Makita"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Borskrutrekker 18V",
+          "sku": "EVT-001",
+          "price": {
+            "currency": "NOK",
+            "amount": 1499
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Slagdrill 750W",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Kraftig slagdrill for mur og betong"
+          }
+        },
+        "brand": {
+          "text": "Bosch"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Slagdrill 750W",
+          "sku": "EVT-002",
+          "price": {
+            "currency": "NOK",
+            "amount": 899
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Vinkelsliper 125mm 850W",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Kompakt vinkelsliper med justerbar hastighet"
+          }
+        },
+        "brand": {
+          "text": "DeWalt"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Vinkelsliper 125mm 850W",
+          "sku": "EVT-003",
+          "price": {
+            "currency": "NOK",
+            "amount": 799
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Stikksag 650W",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Presis stikksag med variabel hastighet"
+          }
+        },
+        "brand": {
+          "text": "Black+Decker"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Stikksag 650W",
+          "sku": "EVT-004",
+          "price": {
+            "currency": "NOK",
+            "amount": 699
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Multiverkt\u00f8y 300W",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Allsidig multiverkt\u00f8y for sliping og kutting"
+          }
+        },
+        "brand": {
+          "text": "Fein"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Multiverkt\u00f8y 300W",
+          "sku": "EVT-005",
+          "price": {
+            "currency": "NOK",
+            "amount": 599
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Bajonettsag 1050W",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Kraftig sag for rivningsarbeid"
+          }
+        },
+        "brand": {
+          "text": "Milwaukee"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Bajonettsag 1050W",
+          "sku": "EVT-006",
+          "price": {
+            "currency": "NOK",
+            "amount": 1099
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Varmluftpistol 2000W",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Justerbar varmluftpistol for fjerning av maling"
+          }
+        },
+        "brand": {
+          "text": "Ryobi"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Varmluftpistol 2000W",
+          "sku": "EVT-007",
+          "price": {
+            "currency": "NOK",
+            "amount": 499
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Laseravstandsm\u00e5ler 50m",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "N\u00f8yaktig m\u00e5ling med laser opptil 50 meter"
+          }
+        },
+        "brand": {
+          "text": "Leica"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Laseravstandsm\u00e5ler 50m",
+          "sku": "MVT-001",
+          "price": {
+            "currency": "NOK",
+            "amount": 1299
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Vater 600mm med libeller",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Aluminiums vater med 3 libeller"
+          }
+        },
+        "brand": {
+          "text": "Hultafors"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Vater 600mm med libeller",
+          "sku": "MVT-002",
+          "price": {
+            "currency": "NOK",
+            "amount": 349
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "M\u00e5leb\u00e5nd 5m med l\u00e5s",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Robust m\u00e5leb\u00e5nd med automatisk tilbakespoling"
+          }
+        },
+        "brand": {
+          "text": "Stanley"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "M\u00e5leb\u00e5nd 5m med l\u00e5s",
+          "sku": "MVT-003",
+          "price": {
+            "currency": "NOK",
+            "amount": 129
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Digital skyvel\u00e6re 150mm",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Presis digital m\u00e5ling med LCD-skjerm"
+          }
+        },
+        "brand": {
+          "text": "Mitutoyo"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Digital skyvel\u00e6re 150mm",
+          "sku": "MVT-004",
+          "price": {
+            "currency": "NOK",
+            "amount": 599
+          },
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "name": "Vinkelm\u00e5ler digital",
+      "shape": "tools-products",
+      "components": {
+        "description": {
+          "richText": {
+            "plainText": "Elektronisk vinkelm\u00e5ler for n\u00f8yaktige m\u00e5linger"
+          }
+        },
+        "brand": {
+          "text": "Bosch"
+        }
+      },
+      "vatType": "No VAT",
+      "variants": [
+        {
+          "name": "Vinkelm\u00e5ler digital",
+          "sku": "MVT-005",
+          "price": {
+            "currency": "NOK",
+            "amount": 799
+          },
+          "isDefault": true
+        }
+      ]
+    }
+  ]
+}
