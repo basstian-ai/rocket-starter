@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '20'
 
-       - name: Install dependencies for import script
+      - name: Install dependencies for import script
         working-directory: ./scripts/crystallize-import
         run: npm install
 
