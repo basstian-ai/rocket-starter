@@ -16,11 +16,14 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
+       - name: Install dependencies for import script
+        working-directory: ./scripts/crystallize-import
+        run: npm install
+
 
       - name: Run import script
-        run: node scripts/crystallize-import/import.js
+        working-directory: ./scripts/crystallize-import
+        run: node import.js
         env:
           TENANT_ID: ${{ secrets.CRYSTALLIZE_TENANT_ID }}
           ACCESS_TOKEN_ID: ${{ secrets.CRYSTALLIZE_ACCESS_TOKEN_ID }}
