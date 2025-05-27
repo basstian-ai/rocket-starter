@@ -1,0 +1,17 @@
+{
+  "name": "crystallize-import",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "@crystallize/import-utilities": "^1.33.0",
+    "dotenv": "^16.5.0"
+  }
+}
