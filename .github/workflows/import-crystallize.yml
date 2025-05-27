@@ -1,0 +1,30 @@
+name: Import to Crystallize
+
+on:
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies for import script
+        working-directory: ./scripts/crystallize-import
+        run: npm install
+
+
+      - name: Run import script
+        working-directory: ./scripts/crystallize-import
+        run: node import.js
+        env:
+          TENANT_ID: ${{ secrets.CRYSTALLIZE_TENANT_ID }}
+          ACCESS_TOKEN_ID: ${{ secrets.CRYSTALLIZE_ACCESS_TOKEN_ID }}
+          ACCESS_TOKEN_SECRET: ${{ secrets.CRYSTALLIZE_ACCESS_TOKEN_SECRET }}
