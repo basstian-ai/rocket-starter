@@ -1,4 +1,4 @@
-import { Bootstrapper } from '@crystallize/import-utilities';
+import { Bootstrapper, EVENT_NAMES } from '@crystallize/import-utilities';
 import spec from './crystallize_import_spec_tools_products.json' with { type: 'json' };
 import dotenv from 'dotenv';
 
@@ -21,9 +21,25 @@ const run = async () => {
   bootstrapper.setTenantIdentifier(tenantIdentifier);
   bootstrapper.setSpec(spec);
 
+  bootstrapper.on(EVENT_NAMES.ERROR, (error) => {
+    console.error('Import process error:', JSON.stringify(error, null, 2));
+    process.exit(1);
+  });
+
+  bootstrapper.on(EVENT_NAMES.DONE, (status) => {
+    console.log(`Import truly completed for tenant "${bootstrapper.tenantIdentifier}" in ${status.duration}ms.`);
+    console.log('Status:', JSON.stringify(status, null, 2));
+    process.exit(0);
+  });
+
+  bootstrapper.on(EVENT_NAMES.STATUS_UPDATE, (status) => {
+    console.log('Import status update:', JSON.stringify(status, null, 2));
+  });
+
   console.log(`Starting import to tenant: ${tenantIdentifier}...`);
-  await bootstrapper.start();
-  console.log('Import completed successfully.');
+  bootstrapper.start();
+  // No longer awaiting here, and removed the old success log.
+  // The process will now wait for DONE or ERROR events.
 };
 
 run().catch(error => {
