@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import Footer from 'components/layout/footer'; // Added Footer import
+import Footer from '../../components/layout/footer'; // Target import path
 
 interface Product {
   id: number;

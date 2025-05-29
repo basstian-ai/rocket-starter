@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Footer from 'components/layout/footer';
+import Footer from '../../components/layout/footer'; // Target import path
 import { logout } from '../../lib/auth'; // Import logout
 
 interface UserData {
