@@ -54,13 +54,10 @@ const LoginPage = () => {
               Username
             </label>
             <input
-              id="username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full rounded-md border border-gray-300 p-2.5 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-              placeholder="Your username"
+              aria-label="Username" // Added for accessibility since placeholder/id is removed
             />
           </div>
           <div className="mb-6">
@@ -68,13 +65,10 @@ const LoginPage = () => {
               Password
             </label>
             <input
-              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full rounded-md border border-gray-300 p-2.5 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-              placeholder="••••••••"
+              aria-label="Password" // Added for accessibility
             />
           </div>
           {error && (
