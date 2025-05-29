@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import MobileMenu from './mobile-menu';
 import Search, { SearchSkeleton } from './search';
+import UserStatus from './user-status'; // Import the new component
 
 const { SITE_NAME } = process.env;
 
@@ -51,8 +52,16 @@ export async function Navbar() {
                   </Link>
                 </li>
               ))}
+              {/* Replace static Login link with UserStatus component */}
+              <Suspense fallback={null}><UserStatus /></Suspense> 
             </ul>
-          ) : null}
+          ) : (
+            // If menu is empty, still show UserStatus
+            <ul className="hidden gap-6 text-sm md:flex md:items-center">
+               <Suspense fallback={null}><UserStatus /></Suspense>
+            </ul>
+          )
+          }
         </div>
         <div className="hidden justify-center md:flex md:w-1/3">
           <Suspense fallback={<SearchSkeleton />}>
