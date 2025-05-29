@@ -3,7 +3,7 @@
 import React, { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Footer from 'components/layout/footer'; // Added Footer import
+import Footer from '../../../components/layout/footer'; // Corrected Footer import path
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
