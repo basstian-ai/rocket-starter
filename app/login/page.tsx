@@ -88,7 +88,7 @@ const LoginPage = () => {
           </div>
         </form>
       </div>
-      <Footer /> {/* Added Footer component */}
+      {/* <Footer /> */} {/* Footer component commented out */}
     </div>
   );
 };
