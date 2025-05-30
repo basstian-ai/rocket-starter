@@ -152,10 +152,10 @@ export default function AccountPage() {
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
-            <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Personal Information</h3>
-            {/* Full Name and Email RESTORED for Iteration 5 */}
-            <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData?.firstName} {userData?.lastName}</p>
-            <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData?.email}</p>
+            {/* Personal Information Heading, Full Name, and Email Commented Out for Iteration 5.1 */}
+            {/* <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Personal Information</h3> */}
+            {/* <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData?.firstName} {userData?.lastName}</p> */}
+            {/* <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData?.email}</p> */}
             {/* Detailed Personal Info Fields Commented Out (Iteration 2)
             {userData?.phone && <p><strong className="text-gray-600 dark:text-gray-300">Phone:</strong> {userData.phone}</p>}
             {userData?.birthDate && <p><strong className="text-gray-600 dark:text-gray-300">Birth Date:</strong> {userData.birthDate}</p>}
