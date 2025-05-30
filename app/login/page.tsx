@@ -88,7 +88,7 @@ const LoginPage = () => {
           </div>
         </form>
       </div>
-      {/* <Footer /> */} {/* Footer component commented out */}
+      {typeof window !== 'undefined' && <Footer />} {/* Footer restored with client-side guard */}
     </div>
   );
 };

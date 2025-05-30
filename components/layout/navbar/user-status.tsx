@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { isLoggedIn, logout, getUserData } from '../../../lib/auth'; // Adjusted path
+import ErrorBoundary from '../../error-boundary'; // Import ErrorBoundary
 
 export default function UserStatus() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -41,28 +42,37 @@ export default function UserStatus() {
   const linkClassName = "text-neutral-500 underline-offset-4 hover:text-black hover:underline dark:text-neutral-400 dark:hover:text-neutral-300";
   const buttonClassName = `${linkClassName} ml-4`; // Add some margin for spacing
 
-  if (loggedIn) {
-    return (
-      <>
-        <li className="hidden md:list-item"> {/* Hide on mobile, will be handled by MobileMenu */}
-          <Link href="/account" className={linkClassName}>
-            Hi, {userName || 'Account'}
-          </Link>
-        </li>
-        <li className="hidden md:list-item"> {/* Hide on mobile */}
-          <button onClick={handleLogout} className={buttonClassName}>
-            Logout
-          </button>
-        </li>
-      </>
-    );
-  }
-
-  return (
-    <li className="hidden md:list-item"> {/* Hide on mobile */}
-      <Link href="/login" prefetch={true} className={linkClassName}>
-        Login
+  // Fallback UI for the ErrorBoundary, fitting the navbar structure
+  const errorFallback = (
+    <li className="hidden md:list-item">
+      <Link href="/login" className={linkClassName}>
+        Login (error)
       </Link>
     </li>
+  );
+
+  return (
+    <ErrorBoundary fallback={errorFallback}>
+      {loggedIn ? (
+        <>
+          <li className="hidden md:list-item"> {/* Hide on mobile, will be handled by MobileMenu */}
+            <Link href="/account" className={linkClassName}>
+              Hi, {userName || 'Account'}
+            </Link>
+          </li>
+          <li className="hidden md:list-item"> {/* Hide on mobile */}
+            <button onClick={handleLogout} className={buttonClassName}>
+              Logout
+            </button>
+          </li>
+        </>
+      ) : (
+        <li className="hidden md:list-item"> {/* Hide on mobile */}
+          <Link href="/login" prefetch={true} className={linkClassName}>
+            Login
+          </Link>
+        </li>
+      )}
+    </ErrorBoundary>
   );
 }
