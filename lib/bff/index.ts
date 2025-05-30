@@ -344,88 +344,58 @@ export async function getCollection(
  * @param {string} [params.sortKey] - The key to sort products by (e.g., 'CREATED_AT', 'PRICE_ASC').
  * @returns {Promise<Product[]>} A promise that resolves to an array of product objects.
  */
-export async function getCollectionProducts(language: string, path: string) {
-  const query = `
-    query GetCollectionProducts($language: String!, $path: String!) {
-      catalogue(language: $language, path: $path) {
-        ... on Folder {
-          children {
-            name
-            path
-            type
+export type CollectionProductOptions = {
+  collection: string;                               // f.eks. "jackets" eller "/jackets"
+  sortKey?: 'CREATED_AT' | 'PRICE' | 'RELEVANCE' | 'BEST_SELLING';
+  reverse?: boolean;
+  first?: number;                                   // hvor mange produkter pr kall
+};
+
+export async function getCollectionProducts(
+  language: string,
+  {
+    collection,
+    sortKey = 'RELEVANCE',
+    reverse = false,
+    first = 24,
+  }: CollectionProductOptions
+) {
+  // 1) Lag path som alltid starter med "/"
+  const path = collection.startsWith('/') ? collection : `/${collection}`;
+
+  // 2) Oversett sortKey → Crystallize OrderBy-felt
+  let sortField: 'ITEM_PUBLISHED_AT' | 'PRICE' | 'ITEM_NAME' | 'BEST_SELLING' =
+    'ITEM_NAME';
+
+  if (sortKey === 'CREATED_AT') sortField = 'ITEM_PUBLISHED_AT';
+  if (sortKey === 'PRICE') sortField = 'PRICE';
+  if (sortKey === 'BEST_SELLING') sortField = 'BEST_SELLING';
+
+  const sortDirection = reverse ? 'DESC' : 'ASC';
+
+  // 3) Filter: alle produkter som ligger under collection-pathen
+  const filter = {
+    type: 'PRODUCT',
+    path: { startsWith: path },
+  };
+
+  const query = /* GraphQL */ `
+    query CollectionProductsSearch(
+      $first: Int
+      $orderBy: OrderByInput
+      $filter: SearchFilterInput
+      $language: String!
+    ) {
+      search(
+        first: $first
+        orderBy: $orderBy
+        filter: $filter
+        language: $language
+      ) {
+        edges {
+          node {
             ... on Product {
-              components {
-                id
-                name
-                content {
-                  ... on SingleLineContent {
-                    text
-                  }
-                  ... on RichTextContent {
-                    json
-                  }
-                  ... on ImageContent {
-                    images {
-                      url
-                      altText
-                    }
-                  }
-                  ... on FileContent {
-                    files {
-                      url
-                      title
-                    }
-                  }
-                  ... on ItemRelationsContent {
-                    items {
-                      name
-                      path
-                    }
-                  }
-                }
-              }
-              defaultVariant {
-                name
-                sku
-                price
-                priceVariants {
-                  identifier
-                  name
-                  price
-                  currency
-                }
-                images {
-                  url
-                  altText
-                }
-                components {
-                  id
-                  name
-                  content {
-                    ... on SingleLineContent {
-                      text
-                    }
-                    ... on NumericContent {
-                      number
-                    }
-                    ... on ImageContent {
-                      images {
-                        url
-                        altText
-                      }
-                    }
-                    ... on PropertiesTableContent {
-                      sections {
-                        title
-                        properties {
-                          key
-                          value
-                        }
-                      }
-                    }
-                  }
-                }
-              }
+              ${PRODUCT_COMMON_QUERY_FIELDS}
             }
           }
         }
@@ -433,19 +403,22 @@ export async function getCollectionProducts(language: string, path: string) {
     }
   `;
 
-  try {
-    const response = await client.catalogueApi(query, {
-      language,
-      path
-    });
+  const variables = {
+    first,
+    orderBy: { field: sortField, direction: sortDirection },
+    filter,
+    language,
+  };
 
-    return response?.catalogue?.children || [];
-  } catch (error) {
-    console.error('Error fetching products for collection from Crystallize:', error);
-    throw new Error('Failed to fetch products.');
-  }
+  const { search } = await client.searchApi.call(query, JSON.stringify(variables));
+
+  const edges = search?.edges ?? [];
+
+  // gjenbruk helperen som allerede finnes lenger oppe i filen
+  return edges
+    .map((e: any) => transformCrystallizeProduct(e.node))
+    .filter(Boolean);
 }
-
 /**
  * Retrieves all collections.
  * Simulates fetching a list of all product collections (categories) from a real backend.
