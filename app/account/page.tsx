@@ -132,6 +132,7 @@ export default function AccountPage() {
         </h1>
         
         <div className="mb-8 flex flex-col items-center md:flex-row md:items-start">
+          {/* User Image Commented Out
           {userData?.image && (
             <img 
               src={userData.image} 
@@ -139,6 +140,7 @@ export default function AccountPage() {
               className="mb-4 h-32 w-32 rounded-full border-4 border-blue-500 object-cover shadow-md md:mb-0 md:mr-8" 
             />
           )}
+          */}
           <div className="text-center md:text-left">
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
               Welcome, {userData?.firstName || 'User'}!
@@ -152,10 +154,12 @@ export default function AccountPage() {
             <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Personal Information</h3>
             <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData?.firstName} {userData?.lastName}</p>
             <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData?.email}</p>
+            {/* Detailed Personal Info Fields Commented Out
             {userData?.phone && <p><strong className="text-gray-600 dark:text-gray-300">Phone:</strong> {userData.phone}</p>}
             {userData?.birthDate && <p><strong className="text-gray-600 dark:text-gray-300">Birth Date:</strong> {userData.birthDate}</p>}
             {userData?.age && <p><strong className="text-gray-600 dark:text-gray-300">Age:</strong> {userData.age}</p>}
             {userData?.gender && <p><strong className="text-gray-600 dark:text-gray-300">Gender:</strong> {userData.gender}</p>}
+            */}
           </div>
 
           {/* Address & Academic Section Commented Out 
