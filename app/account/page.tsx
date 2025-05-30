@@ -158,6 +158,7 @@ export default function AccountPage() {
             {userData?.gender && <p><strong className="text-gray-600 dark:text-gray-300">Gender:</strong> {userData.gender}</p>}
           </div>
 
+          {/* Address & Academic Section Commented Out 
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
             <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Address & Academic</h3>
             {userData?.address && (
@@ -171,12 +172,15 @@ export default function AccountPage() {
             )}
             {userData?.university && <p><strong className="text-gray-600 dark:text-gray-300">University:</strong> {userData.university}</p>}
           </div>
+          */}
           
+          {/* Technical Details Section Commented Out
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700 md:col-span-2">
              <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Technical Details</h3>
             {userData?.ip && <p><strong className="text-gray-600 dark:text-gray-300">IP Address:</strong> {userData.ip}</p>}
             {userData?.macAddress && <p><strong className="text-gray-600 dark:text-gray-300">MAC Address:</strong> {userData.macAddress}</p>}
           </div>
+          */}
         </div>
 
         <div className="mt-8 text-center">
