@@ -123,20 +123,87 @@ export default function AccountPage() {
     );
   }
 
-  // Main content display for Iteration 4 diagnostics
+  // Main content display
   return (
-    <div className="container mx-auto p-4"> {/* Simplified outer container */}
-      <h1 className="text-2xl font-bold mb-4">My Account</h1>
-      <p>Account page rendered with minimal content for diagnostics.</p>
-      {/* Still display something minimal from userData to ensure it's processed, and it is not null */}
-      <p>User ID: {userData?.id}</p> 
-      
-      {/* 
-        All previous detailed display of userData (name, email, address, etc.),
-        Link to orders, Logout button are effectively commented out by replacing the return block.
-        The Footer component previously here is also now outside this minimal return.
-        The main layout (app/layout.tsx) will provide its own Footer if this page doesn't.
-      */}
+    <div className="min-h-screen bg-gray-100 py-8 dark:bg-gray-900">
+      <div className="container mx-auto max-w-3xl rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800">
+        <h1 className="mb-6 border-b border-gray-300 pb-4 text-center text-3xl font-bold text-gray-900 dark:border-gray-700 dark:text-white">
+          My Account
+        </h1>
+        
+        <div className="mb-8 flex flex-col items-center md:flex-row md:items-start">
+          {/* User Image Commented Out (Iteration 2)
+          {userData?.image && (
+            <img 
+              src={userData.image} 
+              alt={`${userData.firstName || 'User'}'s avatar`} 
+              className="mb-4 h-32 w-32 rounded-full border-4 border-blue-500 object-cover shadow-md md:mb-0 md:mr-8" 
+            />
+          )}
+          */}
+          {/* Welcome message and username RESTORED for Iteration 5 */}
+          <div className="text-center md:text-left">
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
+              Welcome, {userData?.firstName || 'User'}!
+            </h2>
+            {userData?.username && <p className="mt-1 text-gray-600 dark:text-gray-400">@{userData.username}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
+            <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Personal Information</h3>
+            {/* Full Name and Email RESTORED for Iteration 5 */}
+            <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData?.firstName} {userData?.lastName}</p>
+            <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData?.email}</p>
+            {/* Detailed Personal Info Fields Commented Out (Iteration 2)
+            {userData?.phone && <p><strong className="text-gray-600 dark:text-gray-300">Phone:</strong> {userData.phone}</p>}
+            {userData?.birthDate && <p><strong className="text-gray-600 dark:text-gray-300">Birth Date:</strong> {userData.birthDate}</p>}
+            {userData?.age && <p><strong className="text-gray-600 dark:text-gray-300">Age:</strong> {userData.age}</p>}
+            {userData?.gender && <p><strong className="text-gray-600 dark:text-gray-300">Gender:</strong> {userData.gender}</p>}
+            */}
+          </div>
+
+          {/* Address & Academic Section Commented Out (Iteration 1) 
+          <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
+            <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Address & Academic</h3>
+            {userData?.address && (
+              <p>
+                <strong className="text-gray-600 dark:text-gray-300">Address:</strong> 
+                {userData.address.address ? ` ${userData.address.address},` : ''}
+                {userData.address.city ? ` ${userData.address.city},` : ''}
+                {userData.address.state ? ` ${userData.address.state}` : ''}
+                {userData.address.postalCode ? ` ${userData.address.postalCode}` : ''}
+              </p>
+            )}
+            {userData?.university && <p><strong className="text-gray-600 dark:text-gray-300">University:</strong> {userData.university}</p>}
+          </div>
+          */}
+          
+          {/* Technical Details Section Commented Out (Iteration 1)
+          <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700 md:col-span-2">
+             <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Technical Details</h3>
+            {userData?.ip && <p><strong className="text-gray-600 dark:text-gray-300">IP Address:</strong> {userData.ip}</p>}
+            {userData?.macAddress && <p><strong className="text-gray-600 dark:text-gray-300">MAC Address:</strong> {userData.macAddress}</p>}
+          </div>
+          */}
+        </div>
+
+        <div className="mt-8 text-center">
+          <Link href="/orders">
+            <span className="inline-block cursor-pointer rounded-lg bg-green-600 px-6 py-3 text-center text-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-800">
+              View Order History
+            </span>
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="mt-4 inline-block cursor-pointer rounded-lg bg-red-600 px-6 py-3 text-center text-lg font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-800 sm:ml-4 sm:mt-0"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+      <Footer />
     </div>
   );
 }
