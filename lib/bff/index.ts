@@ -346,97 +346,112 @@ export async function getCollection(
  */
 export async function getCollectionProducts({
   collection: collectionHandle, // Renamed for clarity within the function
-  reverse,
-  sortKey
+  reverse, // sortKey and reverse are not directly applicable to this catalogue query structure
+  sortKey  // but are kept in signature for consistency if a future iteration uses search.
 }: {
-  collection: string; // This is the actual 'collection' property passed in
+  collection: string; 
   reverse?: boolean;
   sortKey?: string;
 }): Promise<Product[]> {
-  const itemsPerCall = 25; // Consistent with getProducts
-
-  let sortField = "ITEM_NAME";
-  if (sortKey === 'CREATED_AT') {
-    sortField = "ITEM_PUBLISHED_AT";
-  } else if (sortKey === 'PRICE_ASC' || sortKey === 'PRICE_DESC') {
-    sortField = "PRICE";
-  }
-  const sortDirection = reverse ? "DESC" : "ASC";
-
-  // Strategy: Filter products by path (if collection is a folder) or by topic
-  // This assumes collectionHandle is the slug part of the path or a topic name.
-  const collectionPathFilter = `/${collectionHandle}`; // e.g. /my-collection
-
-  const filter: any = {
-    type: "PRODUCT",
-    // Option 1: Filter by items being children of the collection path.
-    // This requires `path` to be a searchable attribute or using specific folder queries.
-    // Example: { path: { startsWith: collectionPathFilter } } - if SearchAPI supports this
-    // Option 2: Filter by topic name. Assumes a topic is named identical to collectionHandle.
-    // Example: { topics: { name: [collectionHandle] } }
-    // For this implementation, let's try to use a product search that filters by a common ancestor path.
-    // This is a common pattern if collections are folders.
-    // A more robust way might be needed depending on exact Crystallize setup (e.g., specific API for folder children).
-    // We can also use `searchTerm` combined with a specific folder structure, or filter by a "category" attribute on products.
-    // For now, we'll use a general search and assume products might be tagged or have a path.
-    // A common approach is to fetch products under a specific folder path.
-    // The Search API might need specific input for this.
-    // Let's assume for now that products directly under a collection path can be fetched by filtering path.
-    // This is a simplification; a real scenario might involve fetching a folder by path, then its children.
-    // Or using a specific filter like `ancestors: "/path/to/collection"` if available.
-    // We'll use a `searchTerm` combined with a `pathPrefix` if that were a feature, or rely on topics.
-    // For simplicity, let's try filtering by topic.
-    // If that's not how collections are linked, this will need adjustment.
-    // Alternative: Fetch the collection item first, then see if it has product children or associated products.
-    // Given the constraints, we'll attempt a search filter by topic.
-    or: [
-      { path: { startsWith: collectionPathFilter } }, // If products are directly under the collection path
-      { topics: { name: [collectionHandle] } }        // If products are tagged with the collection name
-    ]
-  };
-  
-  try {
-    // Ensure Input types like OrderByInput and SearchFilterInput are defined in Crystallize's schema
-    // or adjust variable types (e.g., to JSON or String for stringified JSON).
-    const gqlQuery = `
-      query GetCollectionProducts(
-        $first: Int, 
-        $orderBy: OrderByInput, 
-        $filter: SearchFilterInput, 
-        $language: String
-      ) {
-        search(
-          first: $first, 
-          orderBy: $orderBy, 
-          filter: $filter, 
-          language: $language
-        ) {
-          edges {
-            node {
-              ... on Product {
-                ${PRODUCT_COMMON_QUERY_FIELDS}
+  const collectionPath = `/${collectionHandle}`;
+  // This query attempts to match the user's example structure.
+  // 'CollectionType' is a placeholder for the actual ShapeID or type name of a collection item.
+  // 'productsComponent' is a placeholder for the component ID/name that contains product relations/choices.
+  // This will likely need adjustment based on the specific Crystallize tenant's schema.
+  const gqlQuery = `
+    query GetCollectionProductsFromCatalogue($path: String!, $language: String!) {
+      catalogue(language: $language, path: $path) {
+        # Assuming 'CollectionType' is the specific type/shape for collections in this tenant
+        # If collections are just Folders, this spread might be on Folder or a generic Item type.
+        ... on Item { # Using Item as a general type, actual type/ShapeID might be more specific like 'Collection' or a custom one
+          name # Collection name, for context
+          path # Collection path
+          # Attempting to navigate through components as per user's example.
+          # This structure is highly speculative and depends on the tenant's component setup.
+          # We assume a component named 'productsListComponent' (example name) of type ComponentChoiceContent or ItemRelationsContent.
+          productsListComponent: component(id: "products") { # Replace "products" with actual component ID/name
+             ... on ComponentChoiceContent {
+              selectedComponent {
+                ... on ItemRelationsContent { # Assuming products are linked via an ItemRelations component
+                  items {
+                    ... on Product {
+                      ${PRODUCT_COMMON_QUERY_FIELDS}
+                    }
+                  }
+                }
+                # Add other possible content types if products are linked differently, e.g., via RichText with product links etc.
               }
             }
+            # Alternative: if products are direct children of a Folder collection type
+            # This part would be used if the primary strategy above doesn't match the schema.
+            # ... on Folder {
+            #   children(first: 50) { # Fetch a number of children
+            #     edges {
+            #       node {
+            #         ... on Product {
+            #           ${PRODUCT_COMMON_QUERY_FIELDS}
+            #         }
+            #       }
+            #     }
+            #   }
+            # }
           }
         }
       }
-    `;
-    const variables = {
-      first: itemsPerCall,
-      orderBy: { field: sortField, direction: sortDirection },
-      filter: filter, // filter is already an object
-      language: LANGUAGE,
-    };
-    const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
+    }
+  `;
 
-    const productsData = searchResponse?.data?.search?.edges || [];
-    // Filter out nulls in case some nodes were not products
-    const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter((p: Product | null) => p !== null) as Product[];
+  const variables = {
+    path: collectionPath,
+    language: LANGUAGE,
+    // Note: 'first', 'orderBy' for products are not directly used in this query structure.
+    // Pagination and sorting would need to be handled by transforming the list of all products if fetched this way,
+    // or the GraphQL query would need to support arguments on the nested product list.
+  };
+
+  try {
+    const response = await client.catalogueApi.call(gqlQuery, JSON.stringify(variables));
+
+    let rawProductData: any[] = [];
+
+    // Extract product data based on the assumed GraphQL structure. This needs careful adjustment.
+    const catalogueItem = response?.data?.catalogue;
+    if (catalogueItem) {
+      // Try to extract from the component structure first
+      const productsComponent = catalogueItem.productsListComponent; // Using the alias
+      if (productsComponent?.selectedComponent?.items) {
+        rawProductData = productsComponent.selectedComponent.items;
+      }
+      // Fallback or alternative: if products are children of a Folder (if the above path wasn't found)
+      // else if (catalogueItem.children?.edges) {
+      //  rawProductData = catalogueItem.children.edges.map((edge: any) => edge.node);
+      // }
+    }
     
-    return transformedProducts;
+    const products = rawProductData
+      .map(node => transformCrystallizeProduct(node))
+      .filter(p => p !== null) as Product[];
+
+    // Manual sorting and reversing if needed, as it's not in the GQL query for this API call type
+    if (sortKey === 'PRICE_ASC') {
+      products.sort((a,b) => parseFloat(a.priceRange.minVariantPrice.amount) - parseFloat(b.priceRange.minVariantPrice.amount));
+    } else if (sortKey === 'PRICE_DESC') {
+      products.sort((a,b) => parseFloat(b.priceRange.minVariantPrice.amount) - parseFloat(a.priceRange.minVariantPrice.amount));
+    } else if (sortKey === 'CREATED_AT') { // Approximating with updatedAt
+      products.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    }
+
+    if (reverse && !(sortKey === 'CREATED_AT')) { // CREATED_AT sort implies newest first, reverse would make it oldest first
+       products.reverse();
+    } else if (reverse && sortKey === 'CREATED_AT') { // If already sorted by newest (desc), reverse makes it asc (oldest)
+        products.reverse(); 
+    }
+
+
+    return products;
 
   } catch (error) {
-    console.error(`Error fetching products for collection ${collectionHandle} from Crystallize:`, error);
+    console.error(`Error fetching collection products (handle: ${collectionHandle}) from Crystallize:`, error);
     throw new Error(`Failed to fetch products for collection ${collectionHandle}.`);
   }
 }
