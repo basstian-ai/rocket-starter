@@ -141,19 +141,23 @@ export default function AccountPage() {
             />
           )}
           */}
+          {/* Welcome message and username commented out
           <div className="text-center md:text-left">
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
               Welcome, {userData?.firstName || 'User'}!
             </h2>
             {userData?.username && <p className="mt-1 text-gray-600 dark:text-gray-400">@{userData.username}</p>}
           </div>
+          */}
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
             <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Personal Information</h3>
+            {/* Full Name and Email commented out
             <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData?.firstName} {userData?.lastName}</p>
             <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData?.email}</p>
+            */}
             {/* Detailed Personal Info Fields Commented Out
             {userData?.phone && <p><strong className="text-gray-600 dark:text-gray-300">Phone:</strong> {userData.phone}</p>}
             {userData?.birthDate && <p><strong className="text-gray-600 dark:text-gray-300">Birth Date:</strong> {userData.birthDate}</p>}
