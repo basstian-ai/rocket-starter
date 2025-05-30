@@ -344,115 +344,105 @@ export async function getCollection(
  * @param {string} [params.sortKey] - The key to sort products by (e.g., 'CREATED_AT', 'PRICE_ASC').
  * @returns {Promise<Product[]>} A promise that resolves to an array of product objects.
  */
-export async function getCollectionProducts({
-  collection: collectionHandle, // Renamed for clarity within the function
-  reverse, // sortKey and reverse are not directly applicable to this catalogue query structure
-  sortKey  // but are kept in signature for consistency if a future iteration uses search.
-}: {
-  collection: string; 
-  reverse?: boolean;
-  sortKey?: string;
-}): Promise<Product[]> {
-  const collectionPath = `/${collectionHandle}`;
-  // This query attempts to match the user's example structure.
-  // 'CollectionType' is a placeholder for the actual ShapeID or type name of a collection item.
-  // 'productsComponent' is a placeholder for the component ID/name that contains product relations/choices.
-  // This will likely need adjustment based on the specific Crystallize tenant's schema.
-  const gqlQuery = `
-    query GetCollectionProductsFromCatalogue($path: String!, $language: String!) {
+export async function getCollectionProducts(language: string, path: string) {
+  const query = `
+    query GetCollectionProducts($language: String!, $path: String!) {
       catalogue(language: $language, path: $path) {
-        # Assuming 'CollectionType' is the specific type/shape for collections in this tenant
-        # If collections are just Folders, this spread might be on Folder or a generic Item type.
-        ... on Item { # Using Item as a general type, actual type/ShapeID might be more specific like 'Collection' or a custom one
-          name # Collection name, for context
-          path # Collection path
-          # Attempting to navigate through components as per user's example.
-          # This structure is highly speculative and depends on the tenant's component setup.
-          # We assume a component named 'productsListComponent' (example name) of type ComponentChoiceContent or ItemRelationsContent.
-          productsListComponent: component(id: "products") { # Replace "products" with actual component ID/name
-             ... on ComponentChoiceContent {
-              selectedComponent {
-                ... on ItemRelationsContent { # Assuming products are linked via an ItemRelations component
-                  items {
-                    ... on Product {
-                      ${PRODUCT_COMMON_QUERY_FIELDS}
+        ... on Folder {
+          children {
+            name
+            path
+            type
+            ... on Product {
+              components {
+                id
+                name
+                content {
+                  ... on SingleLineContent {
+                    text
+                  }
+                  ... on RichTextContent {
+                    json
+                  }
+                  ... on ImageContent {
+                    images {
+                      url
+                      altText
+                    }
+                  }
+                  ... on FileContent {
+                    files {
+                      url
+                      title
+                    }
+                  }
+                  ... on ItemRelationsContent {
+                    items {
+                      name
+                      path
                     }
                   }
                 }
-                # Add other possible content types if products are linked differently, e.g., via RichText with product links etc.
+              }
+              defaultVariant {
+                name
+                sku
+                price
+                priceVariants {
+                  identifier
+                  name
+                  price
+                  currency
+                }
+                images {
+                  url
+                  altText
+                }
+                components {
+                  id
+                  name
+                  content {
+                    ... on SingleLineContent {
+                      text
+                    }
+                    ... on NumericContent {
+                      number
+                    }
+                    ... on ImageContent {
+                      images {
+                        url
+                        altText
+                      }
+                    }
+                    ... on PropertiesTableContent {
+                      sections {
+                        title
+                        properties {
+                          key
+                          value
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
-            # Alternative: if products are direct children of a Folder collection type
-            # This part would be used if the primary strategy above doesn't match the schema.
-            # ... on Folder {
-            #   children(first: 50) { # Fetch a number of children
-            #     edges {
-            #       node {
-            #         ... on Product {
-            #           ${PRODUCT_COMMON_QUERY_FIELDS}
-            #         }
-            #       }
-            #     }
-            #   }
-            # }
           }
         }
       }
     }
   `;
 
-  const variables = {
-    path: collectionPath,
-    language: LANGUAGE,
-    // Note: 'first', 'orderBy' for products are not directly used in this query structure.
-    // Pagination and sorting would need to be handled by transforming the list of all products if fetched this way,
-    // or the GraphQL query would need to support arguments on the nested product list.
-  };
-
   try {
-    const response = await client.catalogueApi.call(gqlQuery, JSON.stringify(variables));
+    const response = await client.catalogueApi(query, {
+      language,
+      path
+    });
 
-    let rawProductData: any[] = [];
-
-    // Extract product data based on the assumed GraphQL structure. This needs careful adjustment.
-    const catalogueItem = response?.data?.catalogue;
-    if (catalogueItem) {
-      // Try to extract from the component structure first
-      const productsComponent = catalogueItem.productsListComponent; // Using the alias
-      if (productsComponent?.selectedComponent?.items) {
-        rawProductData = productsComponent.selectedComponent.items;
-      }
-      // Fallback or alternative: if products are children of a Folder (if the above path wasn't found)
-      // else if (catalogueItem.children?.edges) {
-      //  rawProductData = catalogueItem.children.edges.map((edge: any) => edge.node);
-      // }
-    }
-    
-    const products = rawProductData
-      .map(node => transformCrystallizeProduct(node))
-      .filter(p => p !== null) as Product[];
-
-    // Manual sorting and reversing if needed, as it's not in the GQL query for this API call type
-    if (sortKey === 'PRICE_ASC') {
-      products.sort((a,b) => parseFloat(a.priceRange.minVariantPrice.amount) - parseFloat(b.priceRange.minVariantPrice.amount));
-    } else if (sortKey === 'PRICE_DESC') {
-      products.sort((a,b) => parseFloat(b.priceRange.minVariantPrice.amount) - parseFloat(a.priceRange.minVariantPrice.amount));
-    } else if (sortKey === 'CREATED_AT') { // Approximating with updatedAt
-      products.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    }
-
-    if (reverse && !(sortKey === 'CREATED_AT')) { // CREATED_AT sort implies newest first, reverse would make it oldest first
-       products.reverse();
-    } else if (reverse && sortKey === 'CREATED_AT') { // If already sorted by newest (desc), reverse makes it asc (oldest)
-        products.reverse(); 
-    }
-
-
-    return products;
-
+    return response?.catalogue?.children || [];
   } catch (error) {
-    console.error(`Error fetching collection products (handle: ${collectionHandle}) from Crystallize:`, error);
-    throw new Error(`Failed to fetch products for collection ${collectionHandle}.`);
+    console.error('Error fetching products for collection from Crystallize:', error);
+    throw new Error('Failed to fetch products.');
   }
 }
 
@@ -461,55 +451,38 @@ export async function getCollectionProducts({
  * Simulates fetching a list of all product collections (categories) from a real backend.
  * @returns {Promise<Collection[]>} A promise that resolves to an array of collection objects.
  */
-export async function getCollections(): Promise<Collection[]> {
-  try {
-    const gqlQuery = `
-      query GetAllCollections(
-        $language: String!,
-        $first: Int,
-        $filter: SearchFilterInput # Assuming SearchFilterInput is the correct type for the filter object
-      ) {
-        search(
-          language: $language,
-          first: $first,
-          filter: $filter
-        ) {
-          edges {
-            node {
-              # Common fields for a collection-like item (Folder in this case)
-              ... on Folder { 
-                  id
-                  name
-                  path
-                  updatedAt
-                  components { id name type content { ... on SingleLineContent { text } ... on PlainTextContent { plainText } ... on RichTextContent {json} } }
-                  images(first: 1) { url altText width height }
-                  meta: metaConnection(first: 5) { edges { node { key value } } }
+export async function getCollections(language: string) {
+  const query = `
+    query GetCollections($language: String!) {
+      catalogue(language: $language, path: "/products") {
+        ... on Folder {
+          children {
+            name
+            path
+            ... on Folder {
+              children {
+                name
+                path
               }
             }
           }
         }
       }
-    `;
-    const variables = { 
-      language: LANGUAGE,
-      first: 50,
-      filter: { type: "FOLDER" } // Example: Filter for Folders. The type for $filter should match this structure.
-    };
-    const response = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
+    }
+  `;
 
-    const collectionsData = response?.data?.search?.edges || [];
-    const transformedCollections = collectionsData
-      .map((edge: any) => transformCrystallizeCollection(edge.node))
-      .filter((c: Collection | null) => c !== null) as Collection[];
+  try {
+    const response = await client.catalogueApi(query, {
+      language
+    });
 
-    return transformedCollections;
-
+    return response?.catalogue?.children || [];
   } catch (error) {
-    console.error("Error fetching collections from Crystallize:", error);
-    throw new Error("Failed to fetch collections.");
+    console.error('Error fetching collections from Crystallize:', error);
+    throw new Error('Failed to fetch collections.');
   }
 }
+
 
 /**
  * Retrieves menu items for a given handle.
