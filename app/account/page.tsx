@@ -47,29 +47,33 @@ export default function AccountPage() {
     }
 
     const fetchAccountDetails = async () => {
+      console.log('AccountPage: userId:', storedUserId); // Log userId
       setIsLoading(true); // Ensure loading is true at the start of fetch
       setError(''); // Clear previous errors
 
       try {
         const response = await fetch(`/api/account?userId=${storedUserId}`);
-        const data = await response.json();
 
-        if (response.ok) {
-          setUserData(data);
+        if (!response.ok) {
+          // Attempt to parse error message from API, or use status text
+          const errorData = await response.json().catch(() => ({})); // Catch if response.json() itself fails
+          console.warn('AccountPage: API error response:', errorData, 'Status:', response.status); // Log API error
+          setError(errorData.message || `Error: ${response.status} ${response.statusText || 'Failed to load account details.'}`);
         } else {
-          setError(data.message || 'Failed to load account details.');
-          if (response.status === 401 || response.status === 404) {
-            // Optional: Clear potentially invalid user ID and redirect
-            // localStorage.removeItem('userId');
-            // localStorage.removeItem('userFirstName');
-            // localStorage.removeItem('username');
-            // router.push('/login'); 
-            // For now, just show error, user might want to retry or see the error
+          const data = await response.json(); // This could still fail if body is not JSON despite response.ok
+          console.log('AccountPage: Raw data from API:', data); // Log raw data
+                                          // The outer catch block will handle such a failure.
+          if (data && typeof data === 'object') {
+            setUserData(data);
+          } else {
+            setError('Received invalid user data format.');
           }
         }
-      } catch (err) {
-        console.error('Account fetch error:', err);
-        setError('An unexpected error occurred. Please try refreshing the page.');
+      } catch (err) { // This catch handles network errors for fetch, or if response.json() in the 'else' block fails
+        console.error('AccountPage: Error during fetch/processing:', err); // Log caught error
+        // Check if err is an instance of Error to safely access message property
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setError(`An unexpected error occurred: ${errorMessage}. Please try refreshing the page.`);
       } finally {
         setIsLoading(false);
       }
@@ -128,46 +132,50 @@ export default function AccountPage() {
         </h1>
         
         <div className="mb-8 flex flex-col items-center md:flex-row md:items-start">
-          {userData.image && (
+          {userData?.image && (
             <img 
               src={userData.image} 
-              alt={`${userData.firstName}'s avatar`} 
+              alt={`${userData.firstName || 'User'}'s avatar`} 
               className="mb-4 h-32 w-32 rounded-full border-4 border-blue-500 object-cover shadow-md md:mb-0 md:mr-8" 
             />
           )}
           <div className="text-center md:text-left">
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
-              Welcome, {userData.firstName}!
+              Welcome, {userData?.firstName || 'User'}!
             </h2>
-            <p className="mt-1 text-gray-600 dark:text-gray-400">@{userData.username}</p>
+            {userData?.username && <p className="mt-1 text-gray-600 dark:text-gray-400">@{userData.username}</p>}
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
             <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Personal Information</h3>
-            <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData.firstName} {userData.lastName}</p>
-            <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData.email}</p>
-            {userData.phone && <p><strong className="text-gray-600 dark:text-gray-300">Phone:</strong> {userData.phone}</p>}
-            {userData.birthDate && <p><strong className="text-gray-600 dark:text-gray-300">Birth Date:</strong> {userData.birthDate}</p>}
-            {userData.age && <p><strong className="text-gray-600 dark:text-gray-300">Age:</strong> {userData.age}</p>}
-            {userData.gender && <p><strong className="text-gray-600 dark:text-gray-300">Gender:</strong> {userData.gender}</p>}
+            <p><strong className="text-gray-600 dark:text-gray-300">Full Name:</strong> {userData?.firstName} {userData?.lastName}</p>
+            <p><strong className="text-gray-600 dark:text-gray-300">Email:</strong> {userData?.email}</p>
+            {userData?.phone && <p><strong className="text-gray-600 dark:text-gray-300">Phone:</strong> {userData.phone}</p>}
+            {userData?.birthDate && <p><strong className="text-gray-600 dark:text-gray-300">Birth Date:</strong> {userData.birthDate}</p>}
+            {userData?.age && <p><strong className="text-gray-600 dark:text-gray-300">Age:</strong> {userData.age}</p>}
+            {userData?.gender && <p><strong className="text-gray-600 dark:text-gray-300">Gender:</strong> {userData.gender}</p>}
           </div>
 
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700">
             <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Address & Academic</h3>
-            {userData.address && (
-              <>
-                <p><strong className="text-gray-600 dark:text-gray-300">Address:</strong> {userData.address.address}, {userData.address.city}, {userData.address.state} {userData.address.postalCode}</p>
-              </>
+            {userData?.address && (
+              <p>
+                <strong className="text-gray-600 dark:text-gray-300">Address:</strong> 
+                {userData.address.address ? ` ${userData.address.address},` : ''}
+                {userData.address.city ? ` ${userData.address.city},` : ''}
+                {userData.address.state ? ` ${userData.address.state}` : ''}
+                {userData.address.postalCode ? ` ${userData.address.postalCode}` : ''}
+              </p>
             )}
-            {userData.university && <p><strong className="text-gray-600 dark:text-gray-300">University:</strong> {userData.university}</p>}
+            {userData?.university && <p><strong className="text-gray-600 dark:text-gray-300">University:</strong> {userData.university}</p>}
           </div>
           
           <div className="rounded-md bg-gray-50 p-4 shadow dark:bg-gray-700 md:col-span-2">
              <h3 className="mb-3 text-lg font-semibold text-gray-700 dark:text-gray-200">Technical Details</h3>
-            {userData.ip && <p><strong className="text-gray-600 dark:text-gray-300">IP Address:</strong> {userData.ip}</p>}
-            {userData.macAddress && <p><strong className="text-gray-600 dark:text-gray-300">MAC Address:</strong> {userData.macAddress}</p>}
+            {userData?.ip && <p><strong className="text-gray-600 dark:text-gray-300">IP Address:</strong> {userData.ip}</p>}
+            {userData?.macAddress && <p><strong className="text-gray-600 dark:text-gray-300">MAC Address:</strong> {userData.macAddress}</p>}
           </div>
         </div>
 
