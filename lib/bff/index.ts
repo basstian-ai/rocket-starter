@@ -11,7 +11,7 @@ import {
   ProductOption, // Added ProductOption for transformCrystallizeProduct
   Article // Added Article type
 } from './types';
-import { dummyMenu, dummyCollections, dummyProducts, dummyCart, dummyArticles } from './dummy-data'; // Added dummyArticles
+import { dummyMenu, dummyCart, dummyArticles } from './dummy-data'; // Removed dummyCollections, dummyProducts
 import client from 'lib/crystallize/index';
 
 const LANGUAGE = "en"; // Default language for Crystallize API calls
@@ -288,47 +288,47 @@ export async function getCollection(
   try {
     const collectionPath = handle.startsWith('/') ? handle : `/${handle}`; // Ensure path starts with /
     
-    const response = await client.catalogueApi.call({
-      query: `
-        query GET_COLLECTION_BY_PATH($path: String!, $language: String!) {
-          catalogue(path: $path, language: $language) {
-            # Could be a Folder, Topic, or even a Product used as a category
-            ... on Item { # Generic Item fields
+    const query = `
+      query GET_COLLECTION_BY_PATH($path: String!, $language: String!) {
+        catalogue(path: $path, language: $language) {
+          # Could be a Folder, Topic, or even a Product used as a category
+          ... on Item { # Generic Item fields
+            id
+            name
+            path
+            updatedAt
+            components {
               id
               name
-              path
-              updatedAt
-              components {
-                id
-                name
-                type
-                content {
-                  ... on SingleLineContent { text }
-                  ... on PlainTextContent { plainText }
-                  ... on RichTextContent { json }
-                }
+              type
+              content {
+                ... on SingleLineContent { text }
+                ... on PlainTextContent { plainText }
+                ... on RichTextContent { json }
               }
-              images(first: 1) { url altText width height }
-              meta: metaConnection(first: 5) { edges { node { key value } } }
             }
-            # Specific types if you want to query differently based on type
-             ... on Product { # If a product can be a collection
-              ${PRODUCT_COMMON_QUERY_FIELDS}
-            }
-            ... on Folder {
-              children(first: 0) { totalCount } # Example: check if folder has children
-            }
+            images(first: 1) { url altText width height }
+            meta: metaConnection(first: 5) { edges { node { key value } } }
+          }
+          # Specific types if you want to query differently based on type
+            ... on Product { # If a product can be a collection
+            ${PRODUCT_COMMON_QUERY_FIELDS}
+          }
+          ... on Folder {
+            children(first: 0) { totalCount } # Example: check if folder has children
           }
         }
-      `,
-      variables: { path: collectionPath, language: LANGUAGE }
-    });
+      }
+    `;
+    const queryStr = query; // query is already a string here
+    const variablesObj = { path: collectionPath, language: LANGUAGE };
+    const response = await client.catalogueApi.call(queryStr, JSON.stringify(variablesObj));
 
     const collectionData = response?.data?.catalogue;
     if (!collectionData) {
       return undefined;
     }
-    return transformCrystallizeCollection(collectionData);
+    return transformCrystallizeCollection(collectionData) || undefined; // Ensure null becomes undefined
   } catch (error) {
     console.error(`Error fetching collection (handle: ${handle}) from Crystallize:`, error);
     throw new Error(`Failed to fetch collection: ${handle}.`);
@@ -345,15 +345,11 @@ export async function getCollection(
  * @returns {Promise<Product[]>} A promise that resolves to an array of product objects.
  */
 export async function getCollectionProducts({
-  collection,
+  collection: collectionHandle, // Renamed for clarity within the function
   reverse,
   sortKey
 }: {
-  collection: collectionHandle,
-  reverse,
-  sortKey
-}: {
-  collection: string;
+  collection: string; // This is the actual 'collection' property passed in
   reverse?: boolean;
   sortKey?: string;
 }): Promise<Product[]> {
@@ -400,41 +396,40 @@ export async function getCollectionProducts({
   };
   
   try {
-    const searchResponse = await client.searchApi.call({
-      query: `
-        query GET_COLLECTION_PRODUCTS(
-          $first: Int, 
-          $orderBy: OrderByInput, 
-          $filter: SearchFilterInput,
-          $language: String
+    const gqlQuery = `
+      query GET_COLLECTION_PRODUCTS(
+        $first: Int, 
+        $orderBy: OrderByInput, 
+        $filter: SearchFilterInput,
+        $language: String
+      ) {
+        search(
+          first: $first, 
+          orderBy: $orderBy, 
+          filter: $filter,
+          language: $language
         ) {
-          search(
-            first: $first, 
-            orderBy: $orderBy, 
-            filter: $filter,
-            language: $language
-          ) {
-            edges {
-              node {
-                ... on Product {
-                  ${PRODUCT_COMMON_QUERY_FIELDS}
-                }
+          edges {
+            node {
+              ... on Product {
+                ${PRODUCT_COMMON_QUERY_FIELDS}
               }
             }
           }
         }
-      `,
-      variables: {
-        first: itemsPerCall,
-        orderBy: { field: sortField, direction: sortDirection },
-        filter: filter,
-        language: LANGUAGE,
       }
-    });
+    `;
+    const variables = {
+      first: itemsPerCall,
+      orderBy: { field: sortField, direction: sortDirection },
+      filter: filter,
+      language: LANGUAGE,
+    };
+    const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
 
     const productsData = searchResponse?.data?.search?.edges || [];
     // Filter out nulls in case some nodes were not products
-    const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter(p => p !== null) as Product[];
+    const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter((p: Product | null) => p !== null) as Product[];
     
     return transformedProducts;
 
@@ -457,58 +452,39 @@ export async function getCollections(): Promise<Collection[]> {
     // For this example, let's assume we fetch items under a known root path like '/collections'
     // Or, fetch all items of a specific shape if your collections have one.
     // This is a simplified query for fetching root level items / children of a root node.
-    const response = await client.catalogueApi.call({
-      query: `
-        query GET_ALL_COLLECTIONS($language: String!) {
-          # Option 1: Children of a root catalogue item (e.g. a "Collections" folder)
-          # catalogue(path: "/collections", language: $language) {
-          #   ... on Folder {
-          #     children(first: 50) { # Adjust count as needed
-          #       edges { node { ...CollectionFields }}
-          #     }
-          #   }
-          # }
-          # Option 2: Search for items of a specific shape or type (if collections have a dedicated shape)
-          search(
-            first: 50, # Adjust as needed
-            filter: { type: FOLDER }, # Or SHAPE, with shapeIdentifier: "my-collection-shape"
-            language: $language
-          ) {
-            edges {
-              node {
-                # Common fields for a collection-like item
-                ... on Folder { # Or whatever type your collections are
-                    id
-                    name
-                    path
-                    updatedAt
-                    components { id name type content { ... on SingleLineContent { text } ... on PlainTextContent { plainText } } }
-                    images(first: 1) { url altText width height }
-                    meta: metaConnection(first: 5) { edges { node { key value } } }
-                }
+    const query = `
+      query GET_ALL_COLLECTIONS($language: String!) {
+        # Using Search API to find items of type Folder, which are assumed to be collections.
+        # This could also be items of a specific Shape if collections are defined that way.
+        search(
+          first: 50, # Adjust as needed
+          filter: { type: FOLDER }, # Example: Filter for Folders
+          language: $language
+        ) {
+          edges {
+            node {
+              # Common fields for a collection-like item (Folder in this case)
+              ... on Folder { 
+                  id
+                  name
+                  path
+                  updatedAt
+                  components { id name type content { ... on SingleLineContent { text } ... on PlainTextContent { plainText } ... on RichTextContent {json} } }
+                  images(first: 1) { url altText width height }
+                  meta: metaConnection(first: 5) { edges { node { key value } } }
               }
             }
           }
         }
-        # Fragment for CollectionFields if using Option 1 to avoid repetition (not used in current Option 2)
-        # fragment CollectionFields on Item {
-        #   id
-        #   name
-        #   path
-        #   updatedAt
-        #   components { id name type content { ... on SingleLineContent { text } ... on PlainTextContent { plainText } } }
-        #   images(first: 1) { url altText width height }
-        #   meta: metaConnection(first: 5) { edges { node { key value } } }
-        # }
-      `,
-      variables: { language: LANGUAGE }
-    });
+      }
+    `;
+    const variables = { language: LANGUAGE };
+    const response = await client.searchApi.call(query, JSON.stringify(variables));
 
-    // Processing based on search (Option 2)
     const collectionsData = response?.data?.search?.edges || [];
     const transformedCollections = collectionsData
       .map((edge: any) => transformCrystallizeCollection(edge.node))
-      .filter(c => c !== null) as Collection[]; // Filter out nulls if some nodes are not transformable
+      .filter((c: Collection | null) => c !== null) as Collection[];
 
     return transformedCollections;
 
@@ -678,18 +654,18 @@ export async function getProduct(handle: string): Promise<Product | undefined> {
   };
 
   try {
-    const catalogueResponse = await client.catalogueApi.call({
-      query: `
-        query GET_PRODUCT_BY_HANDLE ($path: String!, $language: String!) {
-          catalogue(path: $path, language: $language) {
-            ... on Product {
-              ${PRODUCT_COMMON_QUERY_FIELDS}
-            }
+    const query = `
+      query GET_PRODUCT_BY_HANDLE ($path: String!, $language: String!) {
+        catalogue(path: $path, language: $language) {
+          ... on Product {
+            ${PRODUCT_COMMON_QUERY_FIELDS}
           }
         }
-      `,
-      variables: { path: handle, language: LANGUAGE }
-    });
+      }
+    `;
+    const queryStr = query; 
+    const variablesObj = { path: handle, language: LANGUAGE };
+    const catalogueResponse = await client.catalogueApi.call(queryStr, JSON.stringify(variablesObj));
 
     const productData = catalogueResponse?.data?.catalogue;
 
@@ -721,23 +697,21 @@ export async function getProductRecommendations(
     // We need to use Catalogue API here as product ID is an item ID, not a path/handle
     // However, the current getProduct function takes a handle (path).
     // So, we'll construct a direct item query.
-    const currentProductResponse = await client.catalogueApi.call({
-      query: `
-        query GET_PRODUCT_DETAILS_FOR_RECOS($itemId: ID!, $language: String!) {
-          product: item(id: $itemId, language: $language) {
-            ... on Product {
-              id
-              name
-              path
-              topics { name path } # Fetch topics for recommendation strategy
-              # parentId: parent { id } # Could fetch parent folder ID if needed
-            }
+    const currentProductQuery = `
+      query GET_PRODUCT_DETAILS_FOR_RECOS($itemId: ID!, $language: String!) {
+        product: item(id: $itemId, language: $language) {
+          ... on Product {
+            id
+            name
+            path
+            topics { name path } # Fetch topics for recommendation strategy
+            # parentId: parent { id } # Could fetch parent folder ID if needed
           }
         }
-      `,
-      variables: { itemId: productId, language: LANGUAGE }
-    });
-
+      }
+    `;
+    const currentProductVariables = { itemId: productId, language: LANGUAGE };
+    const currentProductResponse = await client.catalogueApi.call(currentProductQuery, JSON.stringify(currentProductVariables));
     const currentProductData = currentProductResponse?.data?.product;
 
     if (!currentProductData) {
@@ -778,42 +752,40 @@ export async function getProductRecommendations(
     }
     
     // Step 3: Fetch related products
-    const recommendationsResponse = await client.searchApi.call({
-      query: `
-        query GET_RECOMMENDED_PRODUCTS(
-          $first: Int, 
-          $filter: SearchFilterInput,
-          $language: String
+    const recommendationsQuery = `
+      query GET_RECOMMENDED_PRODUCTS(
+        $first: Int, 
+        $filter: SearchFilterInput,
+        $language: String
+      ) {
+        search(
+          first: $first, 
+          filter: $filter,
+          language: $language
+          # orderBy: {isRandom: true} # If API supports random sort for variety
         ) {
-          search(
-            first: $first, 
-            filter: $filter,
-            language: $language
-            # orderBy: {isRandom: true} # If API supports random sort for variety
-          ) {
-            edges {
-              node {
-                ... on Product {
-                  ${PRODUCT_COMMON_QUERY_FIELDS}
-                }
+          edges {
+            node {
+              ... on Product {
+                ${PRODUCT_COMMON_QUERY_FIELDS}
               }
             }
           }
         }
-      `,
-      variables: {
-        first: recommendationLimit, // Fetch a bit more to allow filtering out the original product
-        filter: recommendationFilter,
-        language: LANGUAGE,
       }
-    });
-
+    `;
+    const recommendationsVariables = {
+      first: recommendationLimit, // Fetch a bit more to allow filtering out the original product
+      filter: recommendationFilter,
+      language: LANGUAGE,
+    };
+    const recommendationsResponse = await client.searchApi.call(recommendationsQuery, JSON.stringify(recommendationsVariables));
     const recommendedNodes = recommendationsResponse?.data?.search?.edges || [];
 
     // Step 4: Transform and filter
     const transformedRecommendations = recommendedNodes
       .map((edge: any) => transformCrystallizeProduct(edge.node))
-      .filter(p => p !== null && p.id !== productId) as Product[]; // Exclude nulls and the original product
+      .filter((p: Product | null) => p !== null && p.id !== productId) as Product[]; // Exclude nulls and the original product
 
     return transformedRecommendations.slice(0, actualRecommendationsCount);
 
@@ -838,7 +810,6 @@ export async function getProducts({
   sortKey
 }: {
   query?: string;
-  query?: string;
   reverse?: boolean;
   sortKey?: string;
 }): Promise<Product[]> {
@@ -860,40 +831,39 @@ export async function getProducts({
   }
 
   try {
-    const searchResponse = await client.searchApi.call({ 
-      query: `
-        query GET_PRODUCTS_SEARCH(
-          $first: Int, 
-          $orderBy: OrderByInput, 
-          $filter: SearchFilterInput,
-          $language: String
+    const gqlQuery = `
+      query GET_PRODUCTS_SEARCH(
+        $first: Int, 
+        $orderBy: OrderByInput, 
+        $filter: SearchFilterInput,
+        $language: String
+      ) {
+        search(
+          first: $first, 
+          orderBy: $orderBy, 
+          filter: $filter,
+          language: $language
         ) {
-          search(
-            first: $first, 
-            orderBy: $orderBy, 
-            filter: $filter,
-            language: $language
-          ) {
-            edges {
-              node {
-                ... on Product { 
-                  ${PRODUCT_COMMON_QUERY_FIELDS}
-                }
+          edges {
+            node {
+              ... on Product { 
+                ${PRODUCT_COMMON_QUERY_FIELDS}
               }
             }
           }
         }
-      `,
-      variables: {
-        first: itemsPerCall,
-        orderBy: { field: sortField, direction: sortDirection },
-        filter: filter,
-        language: LANGUAGE,
       }
-    });
+    `;
+    const variables = {
+      first: itemsPerCall,
+      orderBy: { field: sortField, direction: sortDirection },
+      filter: filter,
+      language: LANGUAGE,
+    };
+    const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables)); 
 
     const productsData = searchResponse?.data?.search?.edges || [];
-    const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter(p => p !== null) as Product[];
+    const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter((p: Product | null) => p !== null) as Product[];
     
     return transformedProducts;
 
