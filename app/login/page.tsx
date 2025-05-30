@@ -3,7 +3,7 @@
 import React, { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Footer from '../../components/layout/footer'; // Target import path
+import SimpleLoginFooter from '../../components/layout/simple-login-footer'; // New import
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
@@ -88,7 +88,7 @@ const LoginPage = () => {
           </div>
         </form>
       </div>
-      {typeof window !== 'undefined' && <Footer />} {/* Footer restored with client-side guard */}
+      <SimpleLoginFooter /> {/* Added here */}
     </div>
   );
 };
