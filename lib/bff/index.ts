@@ -396,6 +396,8 @@ export async function getCollectionProducts({
   };
   
   try {
+    // Ensure Input types like OrderByInput and SearchFilterInput are defined in Crystallize's schema
+    // or adjust variable types (e.g., to JSON or String for stringified JSON).
     const gqlQuery = `
       query GetCollectionProducts(
         $first: Int, 
@@ -446,17 +448,11 @@ export async function getCollectionProducts({
  */
 export async function getCollections(): Promise<Collection[]> {
   try {
-    // This query assumes collections are represented by top-level folders or items of a specific shape.
-    // It might need adjustment based on actual Crystallize structure.
-    // Example: Fetching children of a root "collections" folder, or items with a "collection" shape.
-    // For this example, let's assume we fetch items under a known root path like '/collections'
-    // Or, fetch all items of a specific shape if your collections have one.
-    // This is a simplified query for fetching root level items / children of a root node.
     const gqlQuery = `
       query GetAllCollections(
         $language: String!,
         $first: Int,
-        $filter: SearchFilterInput
+        $filter: SearchFilterInput # Assuming SearchFilterInput is the correct type for the filter object
       ) {
         search(
           language: $language,
@@ -483,7 +479,7 @@ export async function getCollections(): Promise<Collection[]> {
     const variables = { 
       language: LANGUAGE,
       first: 50,
-      filter: { type: "FOLDER" } // Example: Filter for Folders
+      filter: { type: "FOLDER" } // Example: Filter for Folders. The type for $filter should match this structure.
     };
     const response = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
 
