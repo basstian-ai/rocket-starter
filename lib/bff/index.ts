@@ -397,16 +397,16 @@ export async function getCollectionProducts({
   
   try {
     const gqlQuery = `
-      query GET_COLLECTION_PRODUCTS(
+      query GetCollectionProducts(
         $first: Int, 
         $orderBy: OrderByInput, 
-        $filter: SearchFilterInput,
+        $filter: SearchFilterInput, 
         $language: String
       ) {
         search(
           first: $first, 
           orderBy: $orderBy, 
-          filter: $filter,
+          filter: $filter, 
           language: $language
         ) {
           edges {
@@ -422,7 +422,7 @@ export async function getCollectionProducts({
     const variables = {
       first: itemsPerCall,
       orderBy: { field: sortField, direction: sortDirection },
-      filter: filter,
+      filter: filter, // filter is already an object
       language: LANGUAGE,
     };
     const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
@@ -452,14 +452,16 @@ export async function getCollections(): Promise<Collection[]> {
     // For this example, let's assume we fetch items under a known root path like '/collections'
     // Or, fetch all items of a specific shape if your collections have one.
     // This is a simplified query for fetching root level items / children of a root node.
-    const query = `
-      query GET_ALL_COLLECTIONS($language: String!) {
-        # Using Search API to find items of type Folder, which are assumed to be collections.
-        # This could also be items of a specific Shape if collections are defined that way.
+    const gqlQuery = `
+      query GetAllCollections(
+        $language: String!,
+        $first: Int,
+        $filter: SearchFilterInput
+      ) {
         search(
-          first: 50, # Adjust as needed
-          filter: { type: FOLDER }, # Example: Filter for Folders
-          language: $language
+          language: $language,
+          first: $first,
+          filter: $filter
         ) {
           edges {
             node {
@@ -478,8 +480,12 @@ export async function getCollections(): Promise<Collection[]> {
         }
       }
     `;
-    const variables = { language: LANGUAGE };
-    const response = await client.searchApi.call(query, JSON.stringify(variables));
+    const variables = { 
+      language: LANGUAGE,
+      first: 50,
+      filter: { type: "FOLDER" } // Example: Filter for Folders
+    };
+    const response = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
 
     const collectionsData = response?.data?.search?.edges || [];
     const transformedCollections = collectionsData
@@ -831,22 +837,25 @@ export async function getProducts({
   }
 
   try {
+    // Note: Input types like OrderByInput and SearchFilterInput are assumed to be defined in Crystallize's schema.
+    // If they are not, the $orderBy and $filter variable definitions might need to be 'JSON' or 'String' if they are passed as stringified JSON.
+    // However, the `filter` object itself is passed, so the type for $filter should match its structure.
     const gqlQuery = `
-      query GET_PRODUCTS_SEARCH(
+      query GetProductsSearch(
         $first: Int, 
         $orderBy: OrderByInput, 
-        $filter: SearchFilterInput,
+        $filter: SearchFilterInput, 
         $language: String
       ) {
         search(
           first: $first, 
           orderBy: $orderBy, 
-          filter: $filter,
+          filter: $filter, 
           language: $language
         ) {
           edges {
             node {
-              ... on Product { 
+              ... on Product {
                 ${PRODUCT_COMMON_QUERY_FIELDS}
               }
             }
@@ -857,10 +866,10 @@ export async function getProducts({
     const variables = {
       first: itemsPerCall,
       orderBy: { field: sortField, direction: sortDirection },
-      filter: filter,
+      filter: filter, // filter is already an object
       language: LANGUAGE,
     };
-    const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables)); 
+    const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
 
     const productsData = searchResponse?.data?.search?.edges || [];
     const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter((p: Product | null) => p !== null) as Product[];
