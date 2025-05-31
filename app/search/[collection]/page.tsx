@@ -6,6 +6,8 @@ import Grid from 'components/grid';
 import ProductGridItems from 'components/layout/product-grid-items';
 import { defaultSort, sorting } from 'lib/constants';
 
+const language = 'en'; // Default language code for Crystallize
+
 export async function generateMetadata(props: {
   params: Promise<{ collection: string }>;
 }): Promise<Metadata> {
@@ -29,7 +31,12 @@ export default async function CategoryPage(props: {
   const params = await props.params;
   const { sort } = searchParams as { [key: string]: string };
   const { sortKey, reverse } = sorting.find((item) => item.slug === sort) || defaultSort;
-  const products = await getCollectionProducts({ collection: params.collection, sortKey, reverse });
+
+  const products = await getCollectionProducts(language, {
+  collection: params.collection,
+  sortKey,
+  reverse
+});
 
   return (
     <section>
