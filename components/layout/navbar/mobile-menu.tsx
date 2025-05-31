@@ -8,13 +8,28 @@ import { Fragment, Suspense, useEffect, useState } from 'react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Menu } from 'lib/bff/types';
 import Search, { SearchSkeleton } from './search';
+import { isLoggedIn, logout, getUserData } from '../../../lib/auth'; // Adjusted path
+import { useRouter } from 'next/navigation'; // Already imported but good to confirm
 
 export default function MobileMenu({ menu }: { menu: Menu[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter(); // For logout
   const [isOpen, setIsOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+
   const openMobileMenu = () => setIsOpen(true);
   const closeMobileMenu = () => setIsOpen(false);
+
+  useEffect(() => {
+    // Update login state when component mounts or isOpen changes
+    if (isOpen) { // Only update when menu is opened to get latest state
+      setLoggedIn(isLoggedIn());
+      setUserName(getUserData().firstName);
+    }
+  }, [isOpen]);
+
 
   useEffect(() => {
     const handleResize = () => {
@@ -88,8 +103,67 @@ export default function MobileMenu({ menu }: { menu: Menu[] }) {
                         </Link>
                       </li>
                     ))}
+                    {/* User Authentication Links for Mobile Menu */}
+                    {loggedIn ? (
+                      <>
+                        <li className="py-2 text-xl text-black transition-colors hover:text-neutral-500 dark:text-white">
+                          <Link href="/account" onClick={closeMobileMenu}>
+                            Hi, {userName || 'Account'}
+                          </Link>
+                        </li>
+                        <li className="py-2 text-xl text-black transition-colors hover:text-neutral-500 dark:text-white">
+                          <button
+                            onClick={() => {
+                              logout(router);
+                              setLoggedIn(false); // Update state immediately
+                              setUserName(null);
+                              closeMobileMenu();
+                            }}
+                          >
+                            Logout
+                          </button>
+                        </li>
+                      </>
+                    ) : (
+                      <li className="py-2 text-xl text-black transition-colors hover:text-neutral-500 dark:text-white">
+                        <Link href="/login" prefetch={true} onClick={closeMobileMenu}>
+                          Login
+                        </Link>
+                      </li>
+                    )}
                   </ul>
-                ) : null}
+                ) : (
+                  // If menu is empty, still show auth links
+                  <ul className="flex w-full flex-col">
+                    {loggedIn ? (
+                      <>
+                        <li className="py-2 text-xl text-black transition-colors hover:text-neutral-500 dark:text-white">
+                          <Link href="/account" onClick={closeMobileMenu}>
+                            Hi, {userName || 'Account'}
+                          </Link>
+                        </li>
+                        <li className="py-2 text-xl text-black transition-colors hover:text-neutral-500 dark:text-white">
+                          <button
+                            onClick={() => {
+                              logout(router);
+                              setLoggedIn(false);
+                              setUserName(null);
+                              closeMobileMenu();
+                            }}
+                          >
+                            Logout
+                          </button>
+                        </li>
+                      </>
+                    ) : (
+                      <li className="py-2 text-xl text-black transition-colors hover:text-neutral-500 dark:text-white">
+                        <Link href="/login" prefetch={true} onClick={closeMobileMenu}>
+                          Login
+                        </Link>
+                      </li>
+                    )}
+                  </ul>
+                )}
               </div>
             </Dialog.Panel>
           </Transition.Child>
