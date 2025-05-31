@@ -770,13 +770,16 @@ export async function getProductRecommendations(
 export async function getProducts({
   query,
   reverse,
-  sortKey
+  sortKey,
+  language
 }: {
   query?: string;
   reverse?: boolean;
   sortKey?: string;
+  language?: string;
 }): Promise<Product[]> {
   const itemsPerCall = 25;
+  const resolvedLanguage = language || LANGUAGE; // Use provided language or fallback to module default
 
   let sortField = "ITEM_NAME"; 
   if (sortKey === 'CREATED_AT') {
@@ -824,7 +827,7 @@ export async function getProducts({
       first: itemsPerCall,
       orderBy: { field: sortField, direction: sortDirection },
       filter: filter, // filter is already an object
-      language: LANGUAGE,
+      language: resolvedLanguage,
     };
     const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
 
