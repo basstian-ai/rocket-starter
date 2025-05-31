@@ -24,8 +24,8 @@ beforeEach(() => {
   localStorage.clear();
   mockPush.mockClear();
   // Reset fetch mock if it's configured per test or globally in a beforeAll/beforeEach
-  if (global.fetch && typeof global.fetch.mockReset === 'function') {
-    global.fetch.mockReset(); // Use mockReset to clear mock state and implementations
+  if (global.fetch) { // Check if fetch is defined
+    (global.fetch as jest.Mock).mockReset(); // Explicitly cast to jest.Mock
   }
 });
 
