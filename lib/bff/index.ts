@@ -39,25 +39,6 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   let description = '';
   let descriptionHtml = '';
   
-  // From user's example, components is an array. Let's try to find a description-like component.
-  // This assumes the second component (index 1) in the user's example is the description.
-  // This is a simplified approach due to previous GQL validation issues.
-  const descriptionComponent = node.components?.[1]; // Based on user's example structure.
-  if (descriptionComponent?.content?.json) {
-    // Basic transformation for rich text JSON to HTML
-    descriptionHtml = descriptionComponent.content.json.map((block: any) => {
-      if (block.type === 'unordered-list' || block.type === 'ordered-list') {
-        const listType = block.type === 'unordered-list' ? 'ul' : 'ol';
-        const items = block.children?.map((item: any) => `<li>${item.textContent || ''}</li>`).join('') || '';
-        return `<${listType}>${items}</${listType}>`;
-      }
-      return `<p>${block.textContent || block.children?.map((child: any) => child.textContent).join('') || ''}</p>`;
-    }).join('');
-    description = descriptionHtml.replace(/<[^>]*>?/gm, ' ').replace(/\s+/gm, ' ').trim(); // Basic strip tags and normalize spaces
-  } else if (descriptionComponent?.content?.text) {
-    description = descriptionComponent.content.text;
-    descriptionHtml = `<p>${description}</p>`;
-  }
 
 
   // Variants
@@ -177,7 +158,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   
   // SEO and Tags are now minimal as they were removed from SIMPLE_PRODUCT_FIELDS
   const seoTitle = productName; // Default SEO title
-  const seoDescription = description || productName; // Default SEO description
+  const seoDescription = productName; // Fallback to product name if description is empty
   const tags: string[] = []; // No topics data in SIMPLE_PRODUCT_FIELDS
 
   const transformedProduct: Product = {
