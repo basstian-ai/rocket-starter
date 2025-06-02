@@ -9,8 +9,10 @@ import {
   Page,
   Product,
   ProductOption, // Added ProductOption for transformCrystallizeProduct
+  ProductVariant, // Added ProductVariant
   Article // Added Article type
 } from './types';
+import { BASIC_PRODUCT_FIELDS } from './crystallize-query-fragments';
 import { dummyMenu, dummyCart, dummyArticles } from './dummy-data'; // Removed dummyCollections, dummyProducts
 import client from 'lib/crystallize/index';
 
@@ -20,74 +22,55 @@ const LANGUAGE = "en"; // Default language for Crystallize API calls
 // IT MUST BE ENHANCED WITH SHAPE-SPECIFIC COMPONENT QUERIES AND OTHER FIELDS
 // (REFERENCING starter-kit-catalogue.schema.json AND getToolsProducts AS AN EXAMPLE)
 // TO RESTORE FULL PRODUCT DATA FOR THE PDP AND OTHER PRODUCT LISTINGS.
-const PRODUCT_COMMON_QUERY_FIELDS = `
-  id
-  name
-  path
-  topics { name }
+const PRODUCT_COMMON_QUERY_FIELDS = BASIC_PRODUCT_FIELDS;
 
-  variants {
-    id
-    sku
-    name
-    isDefault
-    price
-    priceVariants {
-      identifier
-      price
-      currency
-    }
-    stock
-    images {
-      url
-      altText
-    }
-    attributes { attribute value } # Assuming attributes are needed for options
-  }
-`;
-
-// TODO: THIS TRANSFORMER IS INTENTIONALLY MINIMAL AND USES MANY FALLBACKS
-// DUE TO THE SIMPLIFIED PRODUCT_COMMON_QUERY_FIELDS.
-// IT MUST BE ENHANCED TO CORRECTLY SOURCE DATA FROM SHAPE-SPECIFIC COMPONENTS
 // (E.G., FOR DESCRIPTION, DETAILED IMAGES, SEO FIELDS, CUSTOM ATTRIBUTES)
 // ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
 const transformCrystallizeProduct = (node: any): Product | null => {
-  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) {
+  // Simplified initial check based on BASIC_PRODUCT_FIELDS
+  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product') || !node.name) {
     return null;
   }
 
-  const productTitle = node.productNameFromComponent?.content?.text || node.name || 'Untitled Product';
+  // 1. Product Title
+  const productTitle = node.name ?? 'Untitled Product';
 
-  // Transform variants using direct fields from PRODUCT_COMMON_QUERY_FIELDS
-  const variants = node.variants?.map((variant: any) => { // variant is raw variant from API
-    const variantTitle = variant.name || productTitle;
+  // 3. Variants
+  const transformedVariants = node.variants?.map((variant: any) => {
+    const variantTitle = productTitle; // BASIC_PRODUCT_FIELDS does not have variant.name
 
-    let amount = variant.price?.toString() || "0"; // Default to direct variant.price
-    let currencyCode = "EUR"; // Default to EUR as per spec
+    let amount = "0";
+    // currencyCode will be a static default as it's not in BASIC_PRODUCT_FIELDS' priceVariants
+    const currencyCode = "USD"; // Or appropriate default from your constants
 
-    if (variant.priceVariants && variant.priceVariants.length > 0) {
-      const defaultPriceVariant = variant.priceVariants.find((pv: any) => pv.identifier === 'default') || variant.priceVariants[0];
-      if (defaultPriceVariant) {
-        amount = defaultPriceVariant.price?.toString() || amount;
-        currencyCode = defaultPriceVariant.currency || currencyCode; // Use currency from priceVariant if present
-      }
+    const defaultPriceVariant = variant.priceVariants?.find((pv: any) => pv.identifier === 'default');
+    const firstPriceVariant = variant.priceVariants?.[0];
+
+    if (defaultPriceVariant?.price) {
+      amount = defaultPriceVariant.price.toString();
+    } else if (firstPriceVariant?.price) {
+      amount = firstPriceVariant.price.toString();
     }
 
+    // Since stock is not in BASIC_PRODUCT_FIELDS, set availableForSale based on price or just true
+    const availableForSale = parseFloat(amount) > 0; // Or simply true
+
     return {
-      id: variant.sku || variant.id, // Use direct sku
+      id: variant.sku || variant.id, // SKU is in BASIC_PRODUCT_FIELDS
       title: variantTitle,
-      availableForSale: (variant.stock || 0) > 0, // Use direct stock
-      selectedOptions: variant.attributes?.map((attr: any) => ({ // Use direct attributes
-        name: attr.attribute,
-        value: attr.value
-      })) || [],
+      availableForSale,
+      selectedOptions: [], // attributes are not in BASIC_PRODUCT_FIELDS
       price: { amount, currencyCode }
     };
   }) || [];
 
+  // 4. Price Range
   let minPrice = Infinity;
   let maxPrice = 0;
-  variants.forEach((v: any) => { // v is transformed variant here
+  // currencyCode is static as it's not available in BASIC_PRODUCT_FIELDS priceVariants
+  const rangeCurrencyCode = "USD";
+
+  transformedVariants.forEach((v: ProductVariant) => { // Explicitly type v
     const price = parseFloat(v.price.amount);
     if (!isNaN(price)) {
       if (price < minPrice) minPrice = price;
@@ -96,149 +79,61 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   });
   if (minPrice === Infinity) minPrice = 0;
 
-  // featuredImage logic
-  let featuredImageSource: any = null;
 
-  // 1. Try from default variant's direct images field
-  const defaultVariantFromRaw = node.variants?.find((v: any) => v.isDefault); // from raw API node.variants
-  if (defaultVariantFromRaw?.images?.length > 0) {
-    featuredImageSource = defaultVariantFromRaw.images[0];
-  }
+  // 2. Featured Image
+  const defaultVariantImage = node.variants?.find((v: any) => v.isDefault)?.images?.[0]?.url;
+  const firstVariantImage = node.variants?.[0]?.images?.[0]?.url;
+  const featuredUrl = defaultVariantImage || firstVariantImage || '/placeholder.svg';
 
-  // 2. If not, try from product-level productImageFromComponent
-  if (!featuredImageSource && node.productImageFromComponent?.content?.images?.length > 0) {
-    featuredImageSource = node.productImageFromComponent.content.images[0];
-  }
-
-  // 3. If still not found, try from the first variant that has a direct image
-  if (!featuredImageSource) {
-    const firstVariantWithDirectImage = node.variants?.find((v: any) => v.images?.length > 0); // from raw API node.variants
-    if (firstVariantWithDirectImage) {
-      featuredImageSource = firstVariantWithDirectImage.images[0];
-    }
-  }
-
-  // 4. If still not found, try from generic product components
-  if (!featuredImageSource && node.components) {
-    const imageComponent = node.components?.find(
-      (c: any) => (c.name === 'Images' || c.name === 'Image' || c.name === 'Featured Image' || c.type === 'images') &&
-                   c.content?.images && c.content.images.length > 0
-    );
-    if (imageComponent) {
-      featuredImageSource = imageComponent.content.images[0];
-    }
-  }
-
-  let featuredImage: Image = { url: '', altText: 'Placeholder', width: 0, height: 0 };
-  if (featuredImageSource) {
-    featuredImage = {
-      url: featuredImageSource.url,
-      altText: featuredImageSource.altText || productTitle || 'Product image',
-      width: featuredImageSource.width || 0,
-      height: featuredImageSource.height || 0
-    };
-  }
-  if (!featuredImage.url) { // Final check for placeholder
-      featuredImage = { url: '', altText: 'Placeholder', width: 0, height: 0 };
-  }
-
-  // Gallery images logic
-  let collectedGalleryImages: any[] = [];
-  node.variants?.forEach((v: any) => { // v is raw variant from API
-    if (v.images) { // Use direct images field from raw variant
-      collectedGalleryImages.push(...v.images);
-    }
-  });
-  // Add images from product-level specific component, ensuring not to add duplicates of featuredImage if it came from there
-  if (node.productImageFromComponent?.content?.images) {
-     node.productImageFromComponent.content.images.forEach((img: any) => {
-        if (!featuredImageSource || img.url !== featuredImageSource.url) { // don't add if it's already the featured image
-            // Check if already added from variants (if product image is also a variant image)
-            if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
-                 collectedGalleryImages.push(img);
-            }
-        } else if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
-            // If it IS the featured image source, only add if not already pushed from variants.
-            // This handles case where featuredImageSource was from defaultVariant but productImageFromComponent also has it.
-            collectedGalleryImages.push(img);
-        }
-     });
-  }
-
-  const uniqueImageUrls = new Set();
-  const uniqueGalleryImages = collectedGalleryImages.filter(img => {
-    if (!img.url || uniqueImageUrls.has(img.url)) return false;
-    uniqueImageUrls.add(img.url);
-    return true;
-  });
-
-  let imagesForGallery = {
-    edges: uniqueGalleryImages.map((img: any) => ({
-      node: {
-        url: img.url,
-        altText: img.altText || productTitle || 'Product image',
-        width: img.width || 0,
-        height: img.height || 0
-      }
-    }))
+  const featuredImage: Image = {
+    url: featuredUrl,
+    altText: productTitle,
+    // width and height are removed as they are not in BASIC_PRODUCT_FIELDS for variant images
   };
 
-  // Fallback to generic component search for gallery if still empty
-  if (imagesForGallery.edges.length === 0 && node.components) {
-    const galleryComponent = node.components?.find(
-      (c: any) => (c.name === 'Gallery' || c.type === 'images') &&
-                   c.content?.images && c.content.images.length > 0
-    );
-    if (galleryComponent) {
-      imagesForGallery.edges = galleryComponent.content.images.map((img: any) => ({
-        node: { url: img.url, altText: img.altText || productTitle || 'Product image', width: img.width || 0, height: img.height || 0 }
-      }));
-    }
-  }
+  // 5. Images (Gallery)
+  // Simplified: if we have a real featured image, use it for the gallery, otherwise empty.
+  const imagesForGallery = {
+    edges: featuredUrl !== '/placeholder.svg' ? [{ node: { ...featuredImage } }] : []
+  };
 
-  const description = productTitle || 'Product description placeholder.';
+  // 6. Description & DescriptionHTML
+  // Simplified as BASIC_PRODUCT_FIELDS does not contain component data for rich descriptions
+  const description = `View details for ${productTitle}.`;
   const descriptionHtml = `<p>${description}</p>`;
 
-  // Product Options from variant attributes
+  // 7. Options
+  // BASIC_PRODUCT_FIELDS does not include attributes on variants for options.
   const productOptions: ProductOption[] = [];
-  if (node.variants && node.variants.length > 0) { // Iterate over raw variants from API (node.variants)
-    const tempOptionsMap = new Map<string, Set<string>>();
-    node.variants.forEach((variant:any) => {
-      variant.attributes?.forEach((attr: any) => {
-        if (!tempOptionsMap.has(attr.attribute)) {
-          tempOptionsMap.set(attr.attribute, new Set());
-        }
-        tempOptionsMap.get(attr.attribute)!.add(attr.value);
-      });
-    });
-    tempOptionsMap.forEach((values, name) => {
-      productOptions.push({ id: name, name, values: Array.from(values) });
-    });
-  }
 
-  const seoTitle = productTitle || 'Product';
+  // 8. SEO
+  const seoTitle = productTitle;
   const seoDescription = description;
 
+  // 9. Tags
+  // topics are not in BASIC_PRODUCT_FIELDS
+  const tags: string[] = [];
+
   return {
-    id: node.id, // Product ID from the root of the item
-    handle: node.path,
-    availableForSale: variants.some((v: any) => v.availableForSale), // Check transformed variants
+    id: node.id, // From BASIC_PRODUCT_FIELDS
+    handle: node.path, // From BASIC_PRODUCT_FIELDS
+    availableForSale: transformedVariants.some((v: ProductVariant) => v.availableForSale),
     title: productTitle,
     description,
     descriptionHtml,
     options: productOptions,
     priceRange: {
-      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" },
-      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" }
+      minVariantPrice: { amount: minPrice === Infinity ? "0" : minPrice.toString(), currencyCode: rangeCurrencyCode },
+      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: rangeCurrencyCode }
     },
     variants: {
-      edges: variants.map((v: any) => ({ node: v })) // 'variants' here is the transformed array
+      edges: transformedVariants.map((v: ProductVariant) => ({ node: v }))
     },
     featuredImage,
     images: imagesForGallery,
     seo: { title: seoTitle, description: seoDescription },
-    tags: node.topics?.map((topic: any) => topic.name) || [],
-    updatedAt: new Date().toISOString(),
+    tags,
+    updatedAt: new Date().toISOString(), // No direct updatedAt in BASIC_PRODUCT_FIELDS, use current time
   };
 };
 
@@ -249,18 +144,9 @@ const transformCrystallizeCollection = (node: any): Collection | null => {
       return null;
   }
 
-  let description = '';
-  // Attempt to get description from a 'summary' or 'description' component if Product is used as Collection
-  // This part is highly speculative as 'components' field on Product was problematic
-  const summaryComp = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary');
-  if (summaryComp?.content?.plainText) {
-    description = Array.isArray(summaryComp.content.plainText) ? summaryComp.content.plainText.join('\\n') : String(summaryComp.content.plainText);
-  } else {
-    const descComp = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description');
-    if (descComp?.content?.plainText) {
-      description = Array.isArray(descComp.content.plainText) ? descComp.content.plainText.join('\\n') : String(descComp.content.plainText);
-    }
-  }
+  // Description is simplified as components are removed from the query for non-Product items
+  const description = node.name ? `Details for ${node.name}` : 'Collection details';
+
 
   const firstProductVariantImage = node.variants?.[0]?.images?.[0]; // If product is used as collection
   const featuredImage: Image | undefined = firstProductVariantImage ? {
@@ -366,18 +252,9 @@ export async function getCollection(
             name
             path
             updatedAt
-            components {
-              id
-              name
-              type
-              content {
-                ... on SingleLineContent { text }
-                ... on PlainTextContent { plainText }
-                ... on RichTextContent { json }
-              }
-            }
-            images(first: 1) { url altText }
-            meta: metaConnection(first: 5) { edges { node { key value } } }
+            # Removed components block here
+            images(first: 1) { url altText } # Keep images if available directly on Item
+            meta: metaConnection(first: 5) { edges { node { key value } } } # Keep meta if available
           }
           # Specific types if you want to query differently based on type
             ... on Product { # If a product can be a collection
@@ -922,115 +799,34 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
     $language: String!
     $path: String!
   ) {
-    catalogue(language: $language, path: $path) { # depth removed here
+    catalogue(language: $language, path: $path) {
       __typename
       path
       name
-      ... on Product {
-        ${PRODUCT_COMMON_QUERY_FIELDS}
-        productNameFromComponent: component(id: "product-name") {
-          content {
-            ... on SingleLineContent { text }
-          }
-        }
-        productImageFromComponent: component(id: "product-image") {
-          content {
-            ... on ImageContent { images { url altText } }
-          }
-        }
-        components {
-          id
-          name
-          type
-          content {
-            ... on ImageContent { images { url altText } }
-            ... on NumericContent { number }
-            ... on SingleLineContent { text }
-          }
-        }
+      ... on Product { # If the root path itself can be a product
+        ${BASIC_PRODUCT_FIELDS}
       }
-      children { # Level 1 children (items at Level 2)
+      children {
         __typename
         path
         name
         ... on Product {
-          ${PRODUCT_COMMON_QUERY_FIELDS}
-          productNameFromComponent: component(id: "product-name") {
-            content {
-              ... on SingleLineContent { text }
-            }
-          }
-          productImageFromComponent: component(id: "product-image") {
-            content {
-              ... on ImageContent { images { url altText } }
-            }
-          }
-          components {
-            id
-            name
-            type
-            content {
-              ... on ImageContent { images { url altText } }
-              ... on NumericContent { number }
-              ... on SingleLineContent { text }
-            }
-          }
+          ${BASIC_PRODUCT_FIELDS}
         }
-        children { # Level 2 children (items at Level 3)
+        children {
           __typename
           path
           name
           ... on Product {
-            ${PRODUCT_COMMON_QUERY_FIELDS}
-            productNameFromComponent: component(id: "product-name") {
-              content {
-                ... on SingleLineContent { text }
-              }
-            }
-            productImageFromComponent: component(id: "product-image") {
-              content {
-                ... on ImageContent { images { url altText } }
-              }
-            }
-            components {
-              id
-              name
-              type
-              content {
-                ... on ImageContent { images { url altText } }
-                ... on NumericContent { number }
-                ... on SingleLineContent { text }
-              }
-            }
+            ${BASIC_PRODUCT_FIELDS}
           }
-          children { # Level 3 children (items at Level 4)
+          children {
             __typename
             path
             name
             ... on Product {
-              ${PRODUCT_COMMON_QUERY_FIELDS}
-              productNameFromComponent: component(id: "product-name") {
-                content {
-                  ... on SingleLineContent { text }
-                }
-              }
-              productImageFromComponent: component(id: "product-image") {
-                content {
-                  ... on ImageContent { images { url altText } }
-                }
-              }
-              components {
-                id
-                name
-                type
-                content {
-                  ... on ImageContent { images { url altText } }
-                  ... on NumericContent { number }
-                  ... on SingleLineContent { text }
-                }
-              }
+              ${BASIC_PRODUCT_FIELDS}
             }
-            # No children here to limit depth to 4 actual item levels in this query structure
           }
         }
       }
