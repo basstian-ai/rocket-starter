@@ -111,7 +111,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
 
   // Featured Image - prioritize default variant's first image, then first variant's first image
   let featuredImage: Image = { url: '/placeholder.svg', altText: productName, width: 100, height: 100 };
-  const defaultVariant = variants.find(v => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku);
+  const defaultVariant = variants.find((v: ProductVariant) => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku);
   
   if (defaultVariant?.images && defaultVariant.images.length > 0) {
     featuredImage = { 
