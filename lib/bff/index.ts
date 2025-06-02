@@ -12,7 +12,7 @@ import {
   ProductVariant, // Added ProductVariant
   Article // Added Article type
 } from './types';
-import { SIMPLE_PRODUCT_FIELDS } from './crystallize-query-fragments';
+import { GET_SINGLE_PRODUCT_QUERY_STRING, SIMPLE_PRODUCT_FIELDS } from './crystallize-query-fragments';
 import { dummyMenu, dummyCart, dummyArticles } from './dummy-data'; // Removed dummyCollections, dummyProducts
 import client from 'lib/crystallize/index';
 
@@ -460,16 +460,7 @@ export async function getPages(): Promise<Page[]> {
 export async function getProduct(handle: string): Promise<Product | undefined> {
   try {
     const productPath = handle.startsWith('/') ? handle : `/${handle}`;
-    const query = `
-      query GET_PRODUCT_BY_HANDLE ($path: String!, $language: String!) {
-        catalogue(path: $path, language: $language) {
-          ... on Product {
-            ${PRODUCT_COMMON_QUERY_FIELDS}
-          }
-        }
-      }
-    `;
-    const queryStr = query; 
+    const queryStr = GET_SINGLE_PRODUCT_QUERY_STRING;
     const variablesObj = { path: productPath, language: LANGUAGE };
     // Assuming client.catalogueApi can be called directly
     const catalogueResponse = await client.catalogueApi(queryStr, variablesObj);
