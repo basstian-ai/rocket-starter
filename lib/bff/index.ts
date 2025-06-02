@@ -826,6 +826,85 @@ export async function getProducts({
   }
 }
 
+const DESCENDANT_PRODUCTS_QUERY = `
+  query DESCENDANT_PRODUCTS($rootPath: String!, $language: String!, $depth: Int!) {
+    catalogue(language: $language, path: $rootPath) {
+      ... on Item {
+        name
+        path
+        __typename
+        ... on Product {
+          ${PRODUCT_COMMON_QUERY_FIELDS}
+        }
+        children(depth: $depth) {
+          name
+          path
+          __typename
+          ... on Product {
+            ${PRODUCT_COMMON_QUERY_FIELDS}
+          }
+          children(depth: $depth) {
+            name
+            path
+            __typename
+            ... on Product {
+              ${PRODUCT_COMMON_QUERY_FIELDS}
+            }
+            children(depth: $depth) {
+              name
+              path
+              __typename
+              ... on Product {
+                ${PRODUCT_COMMON_QUERY_FIELDS}
+              }
+              children(depth: $depth) {
+                name
+                path
+                __typename
+                ... on Product {
+                  ${PRODUCT_COMMON_QUERY_FIELDS}
+                }
+                # Add more levels if needed, or consider a more dynamic approach if depth is highly variable
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function getSubtreeProducts(
+  rootPath: string,
+  language: string = 'en',
+  limit: number = 5,
+  depth: number = 5
+): Promise<Product[]> {
+  const response = await client.catalogueApi(DESCENDANT_PRODUCTS_QUERY, {
+    rootPath,
+    language,
+    depth,
+  });
+
+  const collect = (node: any, bag: any[] = []): any[] => {
+    if (!node) {
+      return bag;
+    }
+    if (node.__typename === 'Product') {
+      bag.push(node);
+    }
+    if (node.children && node.children.length > 0) {
+      node.children.forEach((child: any) => collect(child, bag));
+    }
+    return bag;
+  };
+
+  const allProducts = collect(response?.data?.catalogue);
+  const limitedProducts = allProducts.slice(0, limit);
+
+  return limitedProducts.map(transformCrystallizeProduct).filter(p => p !== null) as Product[];
+}
+
 /**
  * Handles revalidation requests.
  * In a real backend scenario, this might trigger a cache clear or data refresh.
