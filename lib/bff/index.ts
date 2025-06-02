@@ -829,34 +829,60 @@ export async function getProducts({
 const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
   query DescendantProducts(
     $language: String!
-    $rootPath: String! # Renamed from path to rootPath to match function arg
-    $depth: Int!
+    $path: String!
+    $depth: Int! # This depth is declared but not used by the catalogue call itself
   ) {
-    catalogue(language: $language, path: $rootPath, depth: $depth) {
-      ...Descendants
-    }
-  }
-
-  fragment Descendants on Item {
-    __typename
-    path
-    name
-    ... on Product {
-      ${PRODUCT_COMMON_QUERY_FIELDS}
-      # The user-provided fragment had component examples,
-      # but PRODUCT_COMMON_QUERY_FIELDS already covers the necessary product fields.
-      # If specific component fields are needed beyond what PRODUCT_COMMON_QUERY_FIELDS provides,
-      # they would be added here. For now, sticking to the existing common fields.
-    }
-    # Recursive children for Document and Folder types
-    ... on Document {
-      children {
-        ...Descendants
+    catalogue(language: $language, path: $path) { # depth removed here
+      __typename
+      path
+      name
+      ... on Product {
+        components {
+          id
+          name
+          ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
+          ... on ComponentListPrice { content { ... on NumericContent { number } } }
+        }
       }
-    }
-    ... on Folder {
-      children {
-        ...Descendants
+      children { # Level 1 children (items at Level 2)
+        __typename
+        path
+        name
+        ... on Product {
+          components {
+            id
+            name
+            ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
+            ... on ComponentListPrice { content { ... on NumericContent { number } } }
+          }
+        }
+        children { # Level 2 children (items at Level 3)
+          __typename
+          path
+          name
+          ... on Product {
+            components {
+              id
+              name
+              ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
+              ... on ComponentListPrice { content { ... on NumericContent { number } } }
+            }
+          }
+          children { # Level 3 children (items at Level 4)
+            __typename
+            path
+            name
+            ... on Product {
+              components {
+                id
+                name
+                ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
+                ... on ComponentListPrice { content { ... on NumericContent { number } } }
+              }
+            }
+            # No children here to limit depth to 4 actual item levels in this query structure
+          }
+        }
       }
     }
   }
@@ -866,12 +892,12 @@ export async function getSubtreeProducts(
   rootPath: string,
   language: string = 'en',
   limit: number = 5,
-  depth: number = 5
+  depth: number = 5 // depth is passed to the API call but GQL query itself doesn't use it on catalogue
 ): Promise<Product[]> {
   const response = await client.catalogueApi(DESCENDANT_PRODUCTS_QUERY, {
-    rootPath,
     language,
-    depth,
+    path: rootPath, // Maps rootPath argument to $path in GQL query
+    depth, // depth is still part of variables sent, even if not used by catalogue resolver
   });
 
   const collect = (node: any, bag: any[] = []): any[] => {
