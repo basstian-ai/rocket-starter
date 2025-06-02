@@ -830,7 +830,6 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
   query DescendantProducts(
     $language: String!
     $path: String!
-    $depth: Int! # This depth is declared but not used by the catalogue call itself
   ) {
     catalogue(language: $language, path: $path) { # depth removed here
       __typename
@@ -872,12 +871,11 @@ export async function getSubtreeProducts(
   rootPath: string,
   language: string = 'en',
   limit: number = 5,
-  depth: number = 5 // depth is passed to the API call but GQL query itself doesn't use it on catalogue
+  depth: number = 5 // depth parameter is no longer used in the API call
 ): Promise<Product[]> {
   const response = await client.catalogueApi(DESCENDANT_PRODUCTS_QUERY, {
     language,
     path: rootPath, // Maps rootPath argument to $path in GQL query
-    depth, // depth is still part of variables sent, even if not used by catalogue resolver
   });
 
   const collect = (node: any, bag: any[] = []): any[] => {
