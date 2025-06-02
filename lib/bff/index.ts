@@ -118,7 +118,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   }
 
   // 1. Product Title
-  const productTitle = node.productNameFromComponent?.content?.text || node.name || 'Untitled Product';
+  const productTitle = node.specificProductName?.content?.text || node.productNameFromComponent?.content?.text || node.name || 'Untitled Product';
 
   // 3. Variants
   const transformedVariants = node.variants?.map((variant: any) => {
@@ -173,7 +173,9 @@ const transformCrystallizeProduct = (node: any): Product | null => {
 
   // 2. Featured Image
   let featuredImageSource: any = null;
-  if (node.productImageFromComponent?.content?.images && node.productImageFromComponent.content.images.length > 0) {
+  if (node.specificProductImage?.content?.images && node.specificProductImage.content.images.length > 0) {
+    featuredImageSource = node.specificProductImage.content.images[0];
+  } else if (node.productImageFromComponent?.content?.images && node.productImageFromComponent.content.images.length > 0) {
     featuredImageSource = node.productImageFromComponent.content.images[0];
   } else {
     const defaultVariant = node.variants?.find((v: any) => v.isDefault);
@@ -235,10 +237,13 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     variant.images?.forEach((img: any) => addImageToGallery(img, variant.name || productTitle));
   });
 
-  // From product.productImageFromComponent (if not already featured and added)
+  // From product.specificProductImage (if available)
+  node.specificProductImage?.content?.images?.forEach((img: any) => {
+      addImageToGallery(img, productTitle);
+  });
+  // From product.productImageFromComponent (if available and different or not yet added)
   node.productImageFromComponent?.content?.images?.forEach((img: any) => {
-     // Add to gallery even if it's the featured image, if not already present by URL
-    addImageToGallery(img, productTitle);
+      addImageToGallery(img, productTitle);
   });
 
   // From generic components
@@ -1038,12 +1043,12 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       name
       ... on Product {
         ${PRODUCT_COMMON_QUERY_FIELDS}
-        productNameFromComponent: component(id: "product-name") {
+        specificProductName: component(id: "product-name") {
           content {
             ... on SingleLineContent { text }
           }
         }
-        productImageFromComponent: component(id: "product-image") {
+        specificProductImage: component(id: "product-image") {
           content {
             ... on ImageContent { images { url altText } }
           }
@@ -1065,12 +1070,12 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
         name
         ... on Product {
           ${PRODUCT_COMMON_QUERY_FIELDS}
-          productNameFromComponent: component(id: "product-name") {
+          specificProductName: component(id: "product-name") {
             content {
               ... on SingleLineContent { text }
             }
           }
-          productImageFromComponent: component(id: "product-image") {
+          specificProductImage: component(id: "product-image") {
             content {
               ... on ImageContent { images { url altText } }
             }
@@ -1092,12 +1097,12 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
           name
           ... on Product {
             ${PRODUCT_COMMON_QUERY_FIELDS}
-            productNameFromComponent: component(id: "product-name") {
+            specificProductName: component(id: "product-name") {
               content {
                 ... on SingleLineContent { text }
               }
             }
-            productImageFromComponent: component(id: "product-image") {
+            specificProductImage: component(id: "product-image") {
               content {
                 ... on ImageContent { images { url altText } }
               }
@@ -1119,12 +1124,12 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
             name
             ... on Product {
               ${PRODUCT_COMMON_QUERY_FIELDS}
-              productNameFromComponent: component(id: "product-name") {
+              specificProductName: component(id: "product-name") {
                 content {
                   ... on SingleLineContent { text }
                 }
               }
-              productImageFromComponent: component(id: "product-image") {
+              specificProductImage: component(id: "product-image") {
                 content {
                   ... on ImageContent { images { url altText } }
                 }
