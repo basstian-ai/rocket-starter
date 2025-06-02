@@ -9,23 +9,18 @@ export const SIMPLE_PRODUCT_FIELDS = `
     priceVariants {
       identifier
       price
-      # currency // Assuming currency might not be consistently available directly here
     }
-    images { // Images for the variant
+    images {
       url
       altText
-      # width and height removed due to past validation errors
     }
-    attributes { // For product options like color, size
+    attributes {
       attribute
       value
     }
-    stockLocations { // As per user's data example
+    stockLocations {
        identifier
        stock
     }
-    # stock // If you have a simple 'stock' field directly on variants
   }
-  # Product-level components, images, metaConnection, and topics have been removed
-  # to ensure the GraphQL query passes validation during build.
 `;
