@@ -24,60 +24,130 @@ const PRODUCT_COMMON_QUERY_FIELDS = `
   id
   name
   path
-  topics { name }
+  topics { name } # Keep existing topics
 
+  # Attempt to get a product name from a common component pattern
+  productNameFromComponent: component(id: "name") { # Assuming a component with id 'name' might hold the primary display name
+    content {
+      ... on SingleLineContent { text }
+    }
+  }
+
+  # Attempt to get a featured image from a common component pattern
+  productImageFromComponent: component(id: "images") { # Assuming a component with id 'images' might hold product images
+    content {
+      ... on ImageContent {
+        images {
+          url
+          altText
+          variants { width height url }
+        }
+      }
+    }
+  }
+
+  # Detailed variant information
   variants {
     id
     sku
     name
     isDefault
-    price
-    priceVariants {
+    price # Direct price if available
+    priceVariants { # Structured price variants
       identifier
+      name
       price
       currency
     }
-    stock
-    images {
+    stock # Direct stock if available
+    stockLocations { # Structured stock information
+        identifier
+        name
+        stock
+    }
+    images { # Images specific to this variant
       url
       altText
+      variants { width height url }
     }
-    attributes { attribute value } # Assuming attributes are needed for options
+    attributes { # Attributes for variant selection (e.g., color, size)
+      attribute
+      value
+    }
+  }
+
+  # General components which might contain fallback data or additional details
+  # This is a generic way to fetch some component data if the specific ones above don't yield results
+  # or if other details are needed by the transformer.
+  components {
+    id
+    name
+    type
+    content {
+      ... on SingleLineContent { text }
+      ... on RichTextContent { json plainText } # Fetch multiple formats if available
+      ... on ImageContent {
+        images {
+          url
+          altText
+          variants { width height url }
+        }
+      }
+      ... on ParagraphCollectionContent {
+        paragraphs {
+          title { text }
+          body { json plainText }
+          images {
+            url
+            altText
+            variants { width height url }
+          }
+        }
+      }
+      # Add other content types as needed, e.g., BooleanContent, PropertiesTableContent, etc.
+    }
   }
 `;
 
-// TODO: THIS TRANSFORMER IS INTENTIONALLY MINIMAL AND USES MANY FALLBACKS
-// DUE TO THE SIMPLIFIED PRODUCT_COMMON_QUERY_FIELDS.
-// IT MUST BE ENHANCED TO CORRECTLY SOURCE DATA FROM SHAPE-SPECIFIC COMPONENTS
 // (E.G., FOR DESCRIPTION, DETAILED IMAGES, SEO FIELDS, CUSTOM ATTRIBUTES)
 // ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
 const transformCrystallizeProduct = (node: any): Product | null => {
-  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) {
+  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name && !node.productNameFromComponent)) {
     return null;
   }
 
+  // 1. Product Title
   const productTitle = node.productNameFromComponent?.content?.text || node.name || 'Untitled Product';
 
-  // Transform variants using direct fields from PRODUCT_COMMON_QUERY_FIELDS
-  const variants = node.variants?.map((variant: any) => { // variant is raw variant from API
+  // 3. Variants
+  const transformedVariants = node.variants?.map((variant: any) => {
     const variantTitle = variant.name || productTitle;
 
-    let amount = variant.price?.toString() || "0"; // Default to direct variant.price
-    let currencyCode = "EUR"; // Default to EUR as per spec
+    let amount = "0";
+    let currencyCode = "USD"; // Default currency
 
     if (variant.priceVariants && variant.priceVariants.length > 0) {
       const defaultPriceVariant = variant.priceVariants.find((pv: any) => pv.identifier === 'default') || variant.priceVariants[0];
       if (defaultPriceVariant) {
         amount = defaultPriceVariant.price?.toString() || amount;
-        currencyCode = defaultPriceVariant.currency || currencyCode; // Use currency from priceVariant if present
+        currencyCode = defaultPriceVariant.currency || currencyCode;
       }
+    } else if (variant.price) {
+      amount = variant.price.toString();
+      // currencyCode might need to be sourced from a global default or elsewhere if not in priceVariants
     }
 
+    let availableForSale = (variant.stock || 0) > 0;
+    if (variant.stockLocations && variant.stockLocations.length > 0) {
+        availableForSale = variant.stockLocations.some((loc: any) => (loc.stock || 0) > 0);
+    }
+
+
     return {
-      id: variant.sku || variant.id, // Use direct sku
+      id: variant.sku || variant.id,
       title: variantTitle,
-      availableForSale: (variant.stock || 0) > 0, // Use direct stock
-      selectedOptions: variant.attributes?.map((attr: any) => ({ // Use direct attributes
+      availableForSale,
+      selectedOptions: variant.attributes?.map((attr: any) => ({
         name: attr.attribute,
         value: attr.value
       })) || [],
@@ -85,130 +155,158 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     };
   }) || [];
 
+  // 4. Price Range
   let minPrice = Infinity;
   let maxPrice = 0;
-  variants.forEach((v: any) => { // v is transformed variant here
+  let rangeCurrencyCode = transformedVariants[0]?.price.currencyCode || "USD";
+
+  transformedVariants.forEach((v: any) => {
     const price = parseFloat(v.price.amount);
     if (!isNaN(price)) {
       if (price < minPrice) minPrice = price;
       if (price > maxPrice) maxPrice = price;
     }
   });
-  if (minPrice === Infinity) minPrice = 0;
+  if (minPrice === Infinity) minPrice = 0; // Handle cases where no valid price was found
 
-  // featuredImage logic
+
+  // 2. Featured Image
   let featuredImageSource: any = null;
-
-  // 1. Try from default variant's direct images field
-  const defaultVariantFromRaw = node.variants?.find((v: any) => v.isDefault); // from raw API node.variants
-  if (defaultVariantFromRaw?.images?.length > 0) {
-    featuredImageSource = defaultVariantFromRaw.images[0];
-  }
-
-  // 2. If not, try from product-level productImageFromComponent
-  if (!featuredImageSource && node.productImageFromComponent?.content?.images?.length > 0) {
+  if (node.productImageFromComponent?.content?.images && node.productImageFromComponent.content.images.length > 0) {
     featuredImageSource = node.productImageFromComponent.content.images[0];
-  }
-
-  // 3. If still not found, try from the first variant that has a direct image
-  if (!featuredImageSource) {
-    const firstVariantWithDirectImage = node.variants?.find((v: any) => v.images?.length > 0); // from raw API node.variants
-    if (firstVariantWithDirectImage) {
-      featuredImageSource = firstVariantWithDirectImage.images[0];
-    }
-  }
-
-  // 4. If still not found, try from generic product components
-  if (!featuredImageSource && node.components) {
-    const imageComponent = node.components?.find(
-      (c: any) => (c.name === 'Images' || c.name === 'Image' || c.name === 'Featured Image' || c.type === 'images') &&
-                   c.content?.images && c.content.images.length > 0
-    );
-    if (imageComponent) {
-      featuredImageSource = imageComponent.content.images[0];
+  } else {
+    const defaultVariant = node.variants?.find((v: any) => v.isDefault);
+    if (defaultVariant?.images && defaultVariant.images.length > 0) {
+      featuredImageSource = defaultVariant.images[0];
+    } else if (node.variants?.[0]?.images && node.variants[0].images.length > 0) {
+      featuredImageSource = node.variants[0].images[0];
+    } else if (node.components) {
+      // Iterate through generic components to find an image
+      const imageComponent = node.components.find(
+        (c: any) => c.type === 'images' && c.content?.images && c.content.images.length > 0
+      );
+      if (imageComponent) {
+        featuredImageSource = imageComponent.content.images[0];
+      }
     }
   }
 
   let featuredImage: Image = { url: '', altText: 'Placeholder', width: 0, height: 0 };
   if (featuredImageSource) {
+    const imageVariant = featuredImageSource.variants?.[0]; // Assuming first variant is representative or default
     featuredImage = {
       url: featuredImageSource.url,
       altText: featuredImageSource.altText || productTitle || 'Product image',
-      width: featuredImageSource.width || 0,
-      height: featuredImageSource.height || 0
+      width: imageVariant?.width || featuredImageSource.width || 0,
+      height: imageVariant?.height || featuredImageSource.height || 0
     };
   }
-  if (!featuredImage.url) { // Final check for placeholder
-      featuredImage = { url: '', altText: 'Placeholder', width: 0, height: 0 };
-  }
 
-  // Gallery images logic
-  let collectedGalleryImages: any[] = [];
-  node.variants?.forEach((v: any) => { // v is raw variant from API
-    if (v.images) { // Use direct images field from raw variant
-      collectedGalleryImages.push(...v.images);
-    }
-  });
-  // Add images from product-level specific component, ensuring not to add duplicates of featuredImage if it came from there
-  if (node.productImageFromComponent?.content?.images) {
-     node.productImageFromComponent.content.images.forEach((img: any) => {
-        if (!featuredImageSource || img.url !== featuredImageSource.url) { // don't add if it's already the featured image
-            // Check if already added from variants (if product image is also a variant image)
-            if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
-                 collectedGalleryImages.push(img);
-            }
-        } else if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
-            // If it IS the featured image source, only add if not already pushed from variants.
-            // This handles case where featuredImageSource was from defaultVariant but productImageFromComponent also has it.
-            collectedGalleryImages.push(img);
+
+  // 5. Images (Gallery)
+  const collectedGalleryImages: any[] = [];
+  const uniqueImageUrls = new Set<string>();
+
+  const addImageToGallery = (img: any, title: string) => {
+    if (img?.url && !uniqueImageUrls.has(img.url)) {
+      const imageVariantDetails = img.variants?.[0];
+      collectedGalleryImages.push({
+        node: {
+          url: img.url,
+          altText: img.altText || title || 'Product gallery image',
+          width: imageVariantDetails?.width || img.width || 0,
+          height: imageVariantDetails?.height || img.height || 0,
         }
-     });
-  }
-
-  const uniqueImageUrls = new Set();
-  const uniqueGalleryImages = collectedGalleryImages.filter(img => {
-    if (!img.url || uniqueImageUrls.has(img.url)) return false;
-    uniqueImageUrls.add(img.url);
-    return true;
-  });
-
-  let imagesForGallery = {
-    edges: uniqueGalleryImages.map((img: any) => ({
-      node: {
-        url: img.url,
-        altText: img.altText || productTitle || 'Product image',
-        width: img.width || 0,
-        height: img.height || 0
-      }
-    }))
+      });
+      uniqueImageUrls.add(img.url);
+    }
   };
 
-  // Fallback to generic component search for gallery if still empty
-  if (imagesForGallery.edges.length === 0 && node.components) {
-    const galleryComponent = node.components?.find(
-      (c: any) => (c.name === 'Gallery' || c.type === 'images') &&
-                   c.content?.images && c.content.images.length > 0
-    );
-    if (galleryComponent) {
-      imagesForGallery.edges = galleryComponent.content.images.map((img: any) => ({
-        node: { url: img.url, altText: img.altText || productTitle || 'Product image', width: img.width || 0, height: img.height || 0 }
-      }));
+  // From product.variants.images
+  node.variants?.forEach((variant: any) => {
+    variant.images?.forEach((img: any) => addImageToGallery(img, variant.name || productTitle));
+  });
+
+  // From product.productImageFromComponent (if not already featured and added)
+  node.productImageFromComponent?.content?.images?.forEach((img: any) => {
+     // Add to gallery even if it's the featured image, if not already present by URL
+    addImageToGallery(img, productTitle);
+  });
+
+  // From generic components
+  node.components?.forEach((component: any) => {
+    if (component.type === 'images' && component.content?.images) {
+      component.content.images.forEach((img: any) => addImageToGallery(img, component.name || productTitle));
+    } else if (component.type === 'paragraphCollection' && component.content?.paragraphs) {
+        component.content.paragraphs.forEach((paragraph:any) => {
+            paragraph.images?.forEach((img:any) => addImageToGallery(img, paragraph.title?.text || productTitle));
+        });
     }
+  });
+
+  const imagesForGallery = { edges: collectedGalleryImages };
+
+
+  // 6. Description
+  let description = '';
+  let descriptionHtml = '';
+
+  const descriptionComponent = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description' || c.type === 'richText');
+  const summaryComponent = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary' || c.type === 'plainText' || c.type === 'singleLine');
+  const bodyComponent = node.components?.find((c: any) => c.id === 'body' || c.name === 'Body');
+
+
+  if (descriptionComponent?.content?.json) {
+    // Basic JSON to HTML (highly simplified, needs a proper renderer for complex structures)
+    descriptionHtml = descriptionComponent.content.json.map((block: any) => {
+      if (block.type === 'paragraph') {
+        return `<p>${block.children?.map((child: any) => child.text).join('') || ''}</p>`;
+      }
+      return ''; // Add more block types as needed
+    }).join('');
+    description = descriptionComponent.content.plainText?.join('\n') || descriptionHtml.replace(/<[^>]*>?/gm, '');
+  } else if (descriptionComponent?.content?.plainText) {
+    description = descriptionComponent.content.plainText.join('\n');
+    descriptionHtml = `<p>${description.replace(/\n/g, '</p><p>')}</p>`;
+  } else if (summaryComponent?.content?.text) { // SingleLineContent
+    description = summaryComponent.content.text;
+    descriptionHtml = `<p>${description}</p>`;
+  } else if (summaryComponent?.content?.plainText) { // PlainTextContent
+    description = summaryComponent.content.plainText.join('\n');
+    descriptionHtml = `<p>${description.replace(/\n/g, '</p><p>')}</p>`;
+  } else if (bodyComponent?.content?.json) { // e.g. ParagraphCollection's body
+     descriptionHtml = bodyComponent.content.json.map((block: any) => {
+      if (block.type === 'paragraph') {
+        return `<p>${block.children?.map((child: any) => child.text).join('') || ''}</p>`;
+      }
+      return '';
+    }).join('');
+    description = bodyComponent.content.plainText?.join('\n') || descriptionHtml.replace(/<[^>]*>?/gm, '');
+  } else if (bodyComponent?.content?.plainText) {
+    description = bodyComponent.content.plainText.join('\n');
+    descriptionHtml = `<p>${description.replace(/\n/g, '</p><p>')}</p>`;
   }
 
-  const description = productTitle || 'Product description placeholder.';
-  const descriptionHtml = `<p>${description}</p>`;
+  if (!description && productTitle) {
+      description = `Details for ${productTitle}`; // Fallback description
+  }
+  if (!descriptionHtml && description) {
+      descriptionHtml = `<p>${description.replace(/\n/g, '</p><p>')}</p>`; // Fallback HTML
+  }
 
-  // Product Options from variant attributes
+
+  // 7. Options
   const productOptions: ProductOption[] = [];
-  if (node.variants && node.variants.length > 0) { // Iterate over raw variants from API (node.variants)
+  if (node.variants && node.variants.length > 0) {
     const tempOptionsMap = new Map<string, Set<string>>();
-    node.variants.forEach((variant:any) => {
+    node.variants.forEach((variant: any) => {
       variant.attributes?.forEach((attr: any) => {
-        if (!tempOptionsMap.has(attr.attribute)) {
-          tempOptionsMap.set(attr.attribute, new Set());
+        if (attr.attribute && attr.value) {
+          if (!tempOptionsMap.has(attr.attribute)) {
+            tempOptionsMap.set(attr.attribute, new Set());
+          }
+          tempOptionsMap.get(attr.attribute)!.add(attr.value);
         }
-        tempOptionsMap.get(attr.attribute)!.add(attr.value);
       });
     });
     tempOptionsMap.forEach((values, name) => {
@@ -216,29 +314,33 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     });
   }
 
-  const seoTitle = productTitle || 'Product';
-  const seoDescription = description;
+  // 8. SEO
+  const seoTitle = productTitle; // Use product title for SEO title
+  const seoDescription = description || `View details for ${productTitle}`; // Use derived description
+
+  // 9. Tags
+  const tags = node.topics?.map((topic: any) => topic.name).filter(Boolean) || [];
 
   return {
-    id: node.id, // Product ID from the root of the item
+    id: node.id,
     handle: node.path,
-    availableForSale: variants.some((v: any) => v.availableForSale), // Check transformed variants
+    availableForSale: transformedVariants.some(v => v.availableForSale),
     title: productTitle,
     description,
     descriptionHtml,
     options: productOptions,
     priceRange: {
-      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" },
-      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" }
+      minVariantPrice: { amount: minPrice === Infinity ? "0" : minPrice.toString(), currencyCode: rangeCurrencyCode },
+      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: rangeCurrencyCode }
     },
     variants: {
-      edges: variants.map((v: any) => ({ node: v })) // 'variants' here is the transformed array
+      edges: transformedVariants.map(v => ({ node: v }))
     },
     featuredImage,
     images: imagesForGallery,
     seo: { title: seoTitle, description: seoDescription },
-    tags: node.topics?.map((topic: any) => topic.name) || [],
-    updatedAt: new Date().toISOString(),
+    tags,
+    updatedAt: node.updatedAt || new Date().toISOString(), // Use actual updatedAt if available
   };
 };
 
