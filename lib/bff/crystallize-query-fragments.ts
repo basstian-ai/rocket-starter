@@ -9,7 +9,7 @@ export const SIMPLE_PRODUCT_FIELDS = `
   components {
     id
     name
-    type
+    type 
     # We cannot spread specific content types here due to previous validation errors.
     # The content field will be fetched as a generic JSON object if the API allows,
     # and the transformation logic will need to inspect it.

@@ -38,7 +38,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   // to avoid build errors. We rely on the user's example that components with text/json content are returned.
   let description = '';
   let descriptionHtml = '';
-
+  
   // From user's example, components is an array. Let's try to find a description-like component.
   // This assumes the second component (index 1) in the user's example is the description.
   // This is a simplified approach due to previous GQL validation issues.
@@ -70,8 +70,8 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     const variantImages = variant.images?.map((img: any) => ({
       src: img.url,
       altText: img.altText || variant.name || productName,
-      width: img.width || 0,
-      height: img.height || 0
+      width: img.width || 0, 
+      height: img.height || 0 
     })) || [];
 
     return {
@@ -112,10 +112,10 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   // Featured Image - prioritize default variant's first image, then first variant's first image
   let featuredImage: Image = { url: '/placeholder.svg', altText: productName, width: 100, height: 100 };
   const defaultVariant = variants.find((v: ProductVariant) => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku);
-
+  
   if (defaultVariant?.images && defaultVariant.images.length > 0) {
-    featuredImage = {
-        url: defaultVariant.images[0].src,
+    featuredImage = { 
+        url: defaultVariant.images[0].src, 
         altText: defaultVariant.images[0].altText || productName,
         width: defaultVariant.images[0].width || 0,
         height: defaultVariant.images[0].height || 0
@@ -174,7 +174,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     name,
     values: Array.from(valuesSet)
   }));
-
+  
   // SEO and Tags are now minimal as they were removed from SIMPLE_PRODUCT_FIELDS
   const seoTitle = productName; // Default SEO title
   const seoDescription = description || productName; // Default SEO description
@@ -192,12 +192,12 @@ const transformCrystallizeProduct = (node: any): Product | null => {
       minVariantPrice: { amount: minVariantPrice.toString(), currencyCode },
       maxVariantPrice: { amount: maxVariantPrice.toString(), currencyCode }
     },
-    variants: {
+    variants: { 
         edges: variants.map((v: ProductVariant) => ({node: v}))
     },
     featuredImage,
-    images: {
-        edges: allImagesForGallery
+    images: { 
+        edges: allImagesForGallery 
     },
     seo: { title: seoTitle, description: seoDescription },
     tags,
