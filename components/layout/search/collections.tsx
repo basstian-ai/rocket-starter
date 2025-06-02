@@ -5,7 +5,8 @@ import { getCollections } from 'lib/bff';
 import FilterList from './filter';
 
 async function CollectionList() {
-  const collections = await getCollections();
+  const defaultLanguage = 'en';
+  const collections = await getCollections(defaultLanguage);
   return <FilterList list={collections} title="Collections" />;
 }
 

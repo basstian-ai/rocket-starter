@@ -43,7 +43,8 @@ function ThreeItemGridItem({
 
 export async function ThreeItemGrid() {
   // Collections that start with `hidden-*` are hidden from the search page.
-  const homepageItems = await getCollectionProducts({
+  const defaultLanguage = 'en';
+  const homepageItems = await getCollectionProducts(defaultLanguage, {
     collection: 'hidden-homepage-featured-items'
   });
 

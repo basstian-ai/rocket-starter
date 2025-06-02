@@ -1,6 +1,9 @@
 import { getCollections, getPages, getProducts } from 'lib/bff';
+import type { Collection } from 'lib/bff/types'; // Import the Collection type
 import { baseUrl, validateEnvironmentVariables } from 'lib/utils';
 import { MetadataRoute } from 'next';
+
+const defaultLanguage = 'en';
 
 type Route = {
   url: string;
@@ -17,14 +20,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date().toISOString()
   }));
 
-const collectionsPromise = getCollections().then((collections) =>
-    collections.map((collection) => ({
+const collectionsPromise = getCollections(defaultLanguage).then((collections) =>
+    collections.map((collection: Collection) => ({
       url: `${baseUrl}${collection.path}`,
       lastModified: collection.updatedAt
     }))
   );
 
-  const productsPromise = getProducts({}).then((products) =>
+  const productsPromise = getProducts({ language: defaultLanguage }).then((products) =>
     products.map((product) => ({
       url: `${baseUrl}/product/${product.handle}`,
       lastModified: product.updatedAt

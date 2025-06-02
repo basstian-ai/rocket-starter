@@ -35,8 +35,8 @@ export type CartItem = {
 export type Image = {
   url: string;
   altText: string;
-  width: number;
-  height: number;
+  width?: number; // Made optional
+  height?: number; // Made optional
 };
 
 export type Menu = {

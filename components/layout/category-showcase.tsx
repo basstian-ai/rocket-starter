@@ -5,8 +5,9 @@ import type { Collection } from 'lib/bff/types';
 
 export async function CategoryShowcase() {
   let collections: Collection[] = [];
+  const defaultLanguage = 'en';
   try {
-    collections = await getCollections();
+    collections = await getCollections(defaultLanguage);
   } catch (error) {
     console.error('Failed to fetch collections for CategoryShowcase:', error);
     return null; // Render nothing if fetching fails

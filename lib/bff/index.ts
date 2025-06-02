@@ -16,192 +16,170 @@ import client from 'lib/crystallize/index';
 
 const LANGUAGE = "en"; // Default language for Crystallize API calls
 
-// Common query fields for products, used by getProduct, getProducts, getCollectionProducts
+// TODO: THIS PRODUCT_COMMON_QUERY_FIELDS IS INTENTIONALLY MINIMAL TO ENSURE A SUCCESSFUL BUILD.
+// IT MUST BE ENHANCED WITH SHAPE-SPECIFIC COMPONENT QUERIES AND OTHER FIELDS
+// (REFERENCING starter-kit-catalogue.schema.json AND getToolsProducts AS AN EXAMPLE)
+// TO RESTORE FULL PRODUCT DATA FOR THE PDP AND OTHER PRODUCT LISTINGS.
 const PRODUCT_COMMON_QUERY_FIELDS = `
   id
-  itemId
   name
   path
-  updatedAt
-  
-  components {
-    id
-    name
-    type
-    content {
-      ... on PlainTextContent { plainText }
-      ... on RichTextContent { json html }
-    }
-  }
-
-  defaultVariant {
-    sku
-    name
-    stockCount
-    priceVariants { identifier price currency }
-    firstImage { url altText width height }
-  }
+  # slug # The schema uses 'path' for full paths, handle/slug is derived in transformer.
+  # seo Title/Description are not standard, likely component-based or from a 'meta' field not yet adapted.
+  # vatType # Not available in starter-kit Product type per schema.
 
   variants {
     id
     sku
     name
-    stock
-    price
-    priceVariants { identifier price currency }
-    attributes { attribute value }
-    images { url altText width height }
+    isDefault
+    price # Direct price from variant
+    priceVariants { # Price per price list/currency
+      identifier
+      price
+      currency
+    }
+    stock # Stock count
+    # attributes { attribute value } # Standard in Crystallize, should be safe to add if needed by PDP variant selection
+    images { # Images for this specific variant
+      url
+      altText
+    }
   }
-  
-  images { url altText width height }
-  topics { name }
-  meta: metaConnection(first: 5) { edges { node { key value } } }
+  topics { name } # Used for tags
 `;
 
-// Helper function to transform Crystallize product data to our Product type
+// TODO: THIS TRANSFORMER IS INTENTIONALLY MINIMAL AND USES MANY FALLBACKS
+// DUE TO THE SIMPLIFIED PRODUCT_COMMON_QUERY_FIELDS.
+// IT MUST BE ENHANCED TO CORRECTLY SOURCE DATA FROM SHAPE-SPECIFIC COMPONENTS
+// (E.G., FOR DESCRIPTION, DETAILED IMAGES, SEO FIELDS, CUSTOM ATTRIBUTES)
+// ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
 const transformCrystallizeProduct = (node: any): Product | null => {
-  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) { // Basic check if it's a product-like item
+  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) {
     return null; 
   }
-  const variants = node.variants?.map((variant: any) => ({
-    id: variant.sku || variant.id,
-    title: variant.name || node.name,
-    availableForSale: (variant.stockCount || variant.stock || 0) > 0,
-    selectedOptions: variant.attributes?.map((attr: any) => ({
-      name: attr.attribute,
-      value: attr.value
-    })) || [],
-    price: {
-      amount: variant.priceVariants?.find((p:any) => p.identifier === 'default')?.price?.toString() || variant.price?.toString() || "0",
-      currencyCode: variant.priceVariants?.find((p:any) => p.identifier === 'default')?.currency || "USD"
+
+  const variants = node.variants?.map((variant: any) => {
+    // Attempt to get price from 'price' field or first 'priceVariants'
+    let amount = variant.price?.toString() || "0";
+    let currencyCode = "USD"; // Default currency
+
+    if (variant.priceVariants && variant.priceVariants.length > 0) {
+      const defaultPriceVariant = variant.priceVariants.find((pv: any) => pv.identifier === 'default') || variant.priceVariants[0];
+      if (defaultPriceVariant) {
+        amount = defaultPriceVariant.price?.toString() || amount;
+        currencyCode = defaultPriceVariant.currency || currencyCode;
+      }
     }
-  })) || [];
+
+    return {
+      id: variant.sku || variant.id,
+      title: variant.name || node.name,
+      availableForSale: (variant.stock || 0) > 0,
+      selectedOptions: variant.attributes?.map((attr: any) => ({ // Assuming attributes exist
+        name: attr.attribute,
+        value: attr.value
+      })) || [],
+      price: { amount, currencyCode }
+    };
+  }) || [];
 
   let minPrice = Infinity;
   let maxPrice = 0;
   variants.forEach((v: any) => {
     const price = parseFloat(v.price.amount);
-    if (price < minPrice) minPrice = price;
-    if (price > maxPrice) maxPrice = price;
+    if (!isNaN(price)) {
+      if (price < minPrice) minPrice = price;
+      if (price > maxPrice) maxPrice = price;
+    }
   });
+   if (minPrice === Infinity) minPrice = 0; // Ensure minPrice is not Infinity if no variants or prices
 
-  const firstImage = node.defaultVariant?.firstImage || node.variants?.[0]?.images?.[0] || node.images?.[0];
-  const featuredImage: Image = firstImage ? {
-    url: firstImage.url,
-    altText: firstImage.altText || node.name,
-    width: firstImage.width || 0,
-    height: firstImage.height || 0
-  } : { url: '', altText: 'Placeholder', width: 100, height: 100 };
+  // Fallback for featuredImage: use the first image of the first variant, or a placeholder.
+  const firstVariantWithImage = node.variants?.find((v:any) => v.images && v.images.length > 0);
+  const featuredImageSource = firstVariantWithImage?.images[0];
+  const featuredImage: Image = featuredImageSource ?
+    { url: featuredImageSource.url, altText: featuredImageSource.altText || node.name } :
+    { url: '', altText: 'Placeholder' };
 
-  const allImages = node.variants?.flatMap((v: any) => v.images || []) || node.images || [];
-
-  let description = '';
-  let descriptionHtml = '';
-  const summaryComponent = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary' || c.type === 'singleLine');
-  if (summaryComponent?.content?.plainText) {
-    description = summaryComponent.content.plainText.join('\\n');
-  } else if (summaryComponent?.content?.text) { // another common plain text field
-    description = summaryComponent.content.text;
-  }
-
-  const descriptionComponent = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description' || c.type === 'richText');
-  if (descriptionComponent?.content?.json) {
-    descriptionHtml = descriptionComponent.content.json.map((block: any) => `<p>${block.children?.map((child:any) => child.text).join('') || ''}</p>`).join('');
-    if (!description && descriptionHtml) description = descriptionHtml.replace(/<[^>]*>?/gm, '');
-  } else if (descriptionComponent?.content?.html) {
-      descriptionHtml = descriptionComponent.content.html.join('\\n');
-      if (!description && descriptionHtml) description = descriptionHtml.replace(/<[^>]*>?/gm, '');
-  } else if (descriptionComponent?.content?.plainText) { // Fallback if rich text is actually plain
-      descriptionHtml = `<p>${descriptionComponent.content.plainText.join('\\n')}</p>`;
-      if (!description) description = descriptionComponent.content.plainText.join('\\n');
-  }
-  if (!descriptionHtml && description) descriptionHtml = `<p>${description}</p>`;
+  // Fallback for images (gallery): use all images from all variants.
+  const allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name } })) || []) || [];
+  const imagesForGallery = { edges: allVariantImages };
   
-  const optionsMap = new Map<string, Set<string>>();
-  variants.forEach((variant: any) => {
-    variant.selectedOptions.forEach((opt: any) => {
-      if (!optionsMap.has(opt.name)) {
-        optionsMap.set(opt.name, new Set());
-      }
-      optionsMap.get(opt.name)!.add(opt.value);
-    });
-  });
-  const productOptions: ProductOption[] = Array.from(optionsMap.entries()).map(([name, valuesSet], index) => ({
-    id: `${node.id || node.itemId}-opt-${index}`,
-    name,
-    values: Array.from(valuesSet)
-  }));
+  const description = node.name || 'Product description placeholder.'; // Basic fallback
+  const descriptionHtml = `<p>${description}</p>`;
 
-  const metaSeo = node.meta?.edges?.reduce((acc:any, edge:any) => {
-    acc[edge.node.key] = edge.node.value;
-    return acc;
-  }, {}) || {};
-  const seoTitle = metaSeo.title || node.name;
-  const seoDescription = metaSeo.description || description || node.name;
+  const productOptions: ProductOption[] = []; // Placeholder, as attributes not fully queried/processed for options
+  if (node.variants && node.variants.length > 0) {
+    const tempOptionsMap = new Map<string, Set<string>>();
+    node.variants.forEach((variant:any) => {
+      variant.attributes?.forEach((attr: any) => {
+        if (!tempOptionsMap.has(attr.attribute)) {
+          tempOptionsMap.set(attr.attribute, new Set());
+        }
+        tempOptionsMap.get(attr.attribute)!.add(attr.value);
+      });
+    });
+    tempOptionsMap.forEach((values, name) => {
+      productOptions.push({ id: name, name, values: Array.from(values) });
+    });
+  }
+
+  const seoTitle = node.name || 'Product';
+  const seoDescription = description;
 
   return {
-    id: node.id || node.itemId,
-    handle: node.path, // Assuming path is the full path, handle might need stripping /
+    id: node.id,
+    handle: node.path,
     availableForSale: variants.some((v: any) => v.availableForSale),
     title: node.name,
     description,
     descriptionHtml,
-    options: productOptions,
+    options: productOptions, // Simplified based on available variant attributes
     priceRange: {
-      minVariantPrice: { amount: minPrice === Infinity ? "0" : minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
+      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
       maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" }
     },
     variants: {
       edges: variants.map((v: any) => ({ node: v }))
     },
     featuredImage,
-    images: {
-      edges: allImages.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name, width: img.width || 0, height: img.height || 0 } }))
-    },
+    images: imagesForGallery,
     seo: { title: seoTitle, description: seoDescription },
     tags: node.topics?.map((topic: any) => topic.name) || [],
-    updatedAt: node.updatedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 };
 
 // Helper function for transforming Crystallize Folder/Topic/Item to Collection
+// TODO: This function needs review based on the actual data structure returned by the "starter-kit" tenant.
 const transformCrystallizeCollection = (node: any): Collection | null => {
-  if (!node || (node.__typename && !['Folder', 'Topic', 'Product'].includes(node.__typename) && node.type !== 'folder' && !node.name) ) { // Basic check
+  if (!node || (node.__typename && !['Folder', 'Topic', 'Product'].includes(node.__typename) && node.type !== 'folder' && !node.name) ) {
       return null;
   }
 
   let description = '';
-  const summaryComponent = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary' || c.type === 'singleLine');
-   if (summaryComponent?.content?.plainText) {
-    description = summaryComponent.content.plainText.join('\\n');
-  } else if (summaryComponent?.content?.text) {
-    description = summaryComponent.content.text;
-  } else { // Fallback to a generic description component if summary is not found
-    const genericDescComp = node.components?.find((c:any) => c.name === 'Description' || c.id === 'description');
-    if (genericDescComp?.content?.plainText) {
-        description = genericDescComp.content.plainText.join('\\n');
-    } else if (genericDescComp?.content?.json) { // Basic plain text extraction from rich text
-        description = genericDescComp.content.json.map((b:any) => b.children?.map((c:any) => c.text).join('')).join(' ');
+  // Attempt to get description from a 'summary' or 'description' component if Product is used as Collection
+  // This part is highly speculative as 'components' field on Product was problematic
+  const summaryComp = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary');
+  if (summaryComp?.content?.plainText) {
+    description = Array.isArray(summaryComp.content.plainText) ? summaryComp.content.plainText.join('\\n') : String(summaryComp.content.plainText);
+  } else {
+    const descComp = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description');
+    if (descComp?.content?.plainText) {
+      description = Array.isArray(descComp.content.plainText) ? descComp.content.plainText.join('\\n') : String(descComp.content.plainText);
     }
   }
 
-
-  const firstImage = node.images?.[0] || node.defaultVariant?.firstImage; // Use case for product as collection
-  const featuredImage: Image | undefined = firstImage ? {
-    url: firstImage.url,
-    altText: firstImage.altText || node.name,
-    width: firstImage.width || 0,
-    height: firstImage.height || 0
+  const firstProductVariantImage = node.variants?.[0]?.images?.[0]; // If product is used as collection
+  const featuredImage: Image | undefined = firstProductVariantImage ? {
+    url: firstProductVariantImage.url,
+    altText: firstProductVariantImage.altText || node.name,
   } : undefined;
 
-  const metaSeo = node.meta?.edges?.reduce((acc:any, edge:any) => {
-    acc[edge.node.key] = edge.node.value;
-    return acc;
-  }, {}) || {};
-  const seoTitle = metaSeo.title || node.name;
-  const seoDescription = metaSeo.description || description || node.name;
+  const seoTitle = node.name || 'Collection';
+  const seoDescription = description || node.name || 'Collection description';
   
-  // Handle is the last part of the path
   const handle = node.path?.split('/').pop() || node.path || '';
 
   return {
@@ -209,8 +187,8 @@ const transformCrystallizeCollection = (node: any): Collection | null => {
     title: node.name,
     description,
     seo: { title: seoTitle, description: seoDescription },
-    updatedAt: node.updatedAt || new Date().toISOString(),
-    path: node.path, // Full path
+    updatedAt: node.updatedAt || new Date().toISOString(), // Assuming 'updatedAt' might exist on Folder/Topic items
+    path: node.path,
     featuredImage
   };
 };
@@ -322,7 +300,8 @@ export async function getCollection(
     `;
     const queryStr = query; // query is already a string here
     const variablesObj = { path: collectionPath, language: LANGUAGE };
-    const response = await client.catalogueApi.call(queryStr, JSON.stringify(variablesObj));
+    // Assuming client.catalogueApi can be called directly like in getCollections
+    const response = await client.catalogueApi(queryStr, variablesObj);
 
     const collectionData = response?.data?.catalogue;
     if (!collectionData) {
@@ -382,14 +361,14 @@ export async function getCollectionProducts(
   const query = /* GraphQL */ `
     query CollectionProductsSearch(
       $first: Int
-      $orderBy: OrderByInput
-      $filter: SearchFilterInput
+      $orderBy: OrderBy # Changed from OrderByInput
+      # $filter: SearchFilterInput # TODO: Determine correct filter type for "starter-kit" schema
       $language: String!
     ) {
       search(
         first: $first
         orderBy: $orderBy
-        filter: $filter
+        # filter: $filter # TODO: Enable once correct filter type and structure is known
         language: $language
       ) {
         edges {
@@ -410,7 +389,8 @@ export async function getCollectionProducts(
     language,
   };
 
-  const { search } = await client.searchApi.call(query, JSON.stringify(variables));
+  // Assuming client.searchApi can be called directly
+  const { search } = await client.searchApi(query, variables);
 
   const edges = search?.edges ?? [];
 
@@ -628,7 +608,8 @@ export async function getProduct(handle: string): Promise<Product | undefined> {
     `;
     const queryStr = query; 
     const variablesObj = { path: handle, language: LANGUAGE };
-    const catalogueResponse = await client.catalogueApi.call(queryStr, JSON.stringify(variablesObj));
+    // Assuming client.catalogueApi can be called directly
+    const catalogueResponse = await client.catalogueApi(queryStr, variablesObj);
 
     const productData = catalogueResponse?.data?.catalogue;
 
@@ -674,7 +655,8 @@ export async function getProductRecommendations(
       }
     `;
     const currentProductVariables = { itemId: productId, language: LANGUAGE };
-    const currentProductResponse = await client.catalogueApi.call(currentProductQuery, JSON.stringify(currentProductVariables));
+    // Assuming client.catalogueApi can be called directly
+    const currentProductResponse = await client.catalogueApi(currentProductQuery, currentProductVariables);
     const currentProductData = currentProductResponse?.data?.product;
 
     if (!currentProductData) {
@@ -742,7 +724,8 @@ export async function getProductRecommendations(
       filter: recommendationFilter,
       language: LANGUAGE,
     };
-    const recommendationsResponse = await client.searchApi.call(recommendationsQuery, JSON.stringify(recommendationsVariables));
+    // Assuming client.searchApi can be called directly
+    const recommendationsResponse = await client.searchApi(recommendationsQuery, recommendationsVariables);
     const recommendedNodes = recommendationsResponse?.data?.search?.edges || [];
 
     // Step 4: Transform and filter
@@ -770,13 +753,16 @@ export async function getProductRecommendations(
 export async function getProducts({
   query,
   reverse,
-  sortKey
+  sortKey,
+  language
 }: {
   query?: string;
   reverse?: boolean;
   sortKey?: string;
+  language?: string;
 }): Promise<Product[]> {
   const itemsPerCall = 25;
+  const resolvedLanguage = language || LANGUAGE; // Use provided language or fallback to module default
 
   let sortField = "ITEM_NAME"; 
   if (sortKey === 'CREATED_AT') {
@@ -800,14 +786,14 @@ export async function getProducts({
     const gqlQuery = `
       query GetProductsSearch(
         $first: Int, 
-        $orderBy: OrderByInput, 
-        $filter: SearchFilterInput, 
+      $orderBy: OrderBy, # Changed from OrderByInput
+      # $filter: SearchFilterInput, # TODO: Determine correct filter type for "starter-kit" schema
         $language: String
       ) {
         search(
           first: $first, 
           orderBy: $orderBy, 
-          filter: $filter, 
+        # filter: $filter, # TODO: Enable once correct filter type and structure is known
           language: $language
         ) {
           edges {
@@ -824,9 +810,10 @@ export async function getProducts({
       first: itemsPerCall,
       orderBy: { field: sortField, direction: sortDirection },
       filter: filter, // filter is already an object
-      language: LANGUAGE,
+      language: resolvedLanguage,
     };
-    const searchResponse = await client.searchApi.call(gqlQuery, JSON.stringify(variables));
+    // Assuming client.searchApi can be called directly
+    const searchResponse = await client.searchApi(gqlQuery, variables);
 
     const productsData = searchResponse?.data?.search?.edges || [];
     const transformedProducts = productsData.map((edge: any) => transformCrystallizeProduct(edge.node)).filter((p: Product | null) => p !== null) as Product[];
