@@ -473,8 +473,9 @@ export async function getProduct(handle: string): Promise<Product | undefined> {
     const variablesObj = { path: productPath, language: LANGUAGE };
     // Assuming client.catalogueApi can be called directly
     const catalogueResponse = await client.catalogueApi(queryStr, variablesObj);
-
-    const productData = catalogueResponse?.data?.catalogue;
+console.log('Crystallize raw catalogueResponse:', JSON.stringify(catalogueResponse, null, 2));
+const productData = catalogueResponse?.data?.catalogue; // This line might already exist or be similar
+console.log('Extracted productData for transformation:', JSON.stringify(productData, null, 2));
 
     if (!productData) {
       return undefined;
