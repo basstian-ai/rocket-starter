@@ -12,7 +12,7 @@ import {
   ProductVariant, // Added ProductVariant
   Article // Added Article type
 } from './types';
-import { BASIC_PRODUCT_FIELDS } from './crystallize-query-fragments';
+import { DETAILED_PRODUCT_FIELDS } from './crystallize-query-fragments';
 import { dummyMenu, dummyCart, dummyArticles } from './dummy-data'; // Removed dummyCollections, dummyProducts
 import client from 'lib/crystallize/index';
 
@@ -22,119 +22,221 @@ const LANGUAGE = "en"; // Default language for Crystallize API calls
 // IT MUST BE ENHANCED WITH SHAPE-SPECIFIC COMPONENT QUERIES AND OTHER FIELDS
 // (REFERENCING starter-kit-catalogue.schema.json AND getToolsProducts AS AN EXAMPLE)
 // TO RESTORE FULL PRODUCT DATA FOR THE PDP AND OTHER PRODUCT LISTINGS.
-const PRODUCT_COMMON_QUERY_FIELDS = BASIC_PRODUCT_FIELDS;
+const PRODUCT_COMMON_QUERY_FIELDS = DETAILED_PRODUCT_FIELDS;
 
 // (E.G., FOR DESCRIPTION, DETAILED IMAGES, SEO FIELDS, CUSTOM ATTRIBUTES)
 // ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
 const transformCrystallizeProduct = (node: any): Product | null => {
-  // Simplified initial check based on BASIC_PRODUCT_FIELDS
   if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product') || !node.name) {
     return null;
   }
 
-  // 1. Product Title
-  const productTitle = node.name ?? 'Untitled Product';
+  const getComponentContent = (componentIdOrName: string) => {
+    const component = node.components?.find((c: any) => c.id === componentIdOrName || c.name === componentIdOrName);
+    return component?.content;
+  };
 
-  // 3. Variants
-  const transformedVariants = node.variants?.map((variant: any) => {
-    const variantTitle = productTitle; // BASIC_PRODUCT_FIELDS does not have variant.name
+  const productName = node.name || 'Untitled Product';
 
-    let amount = "0";
-    // currencyCode will be a static default as it's not in BASIC_PRODUCT_FIELDS' priceVariants
-    const currencyCode = "USD"; // Or appropriate default from your constants
-
-    const defaultPriceVariant = variant.priceVariants?.find((pv: any) => pv.identifier === 'default');
-    const firstPriceVariant = variant.priceVariants?.[0];
-
-    if (defaultPriceVariant?.price) {
-      amount = defaultPriceVariant.price.toString();
-    } else if (firstPriceVariant?.price) {
-      amount = firstPriceVariant.price.toString();
+  // Description
+  let description = '';
+  let descriptionHtml = '';
+  const descComponentContent = getComponentContent('description') || getComponentContent('summary'); // Common component names
+  if (descComponentContent) {
+    if (descComponentContent.plainText && descComponentContent.plainText.length > 0) {
+      description = descComponentContent.plainText.join('\n');
     }
+    if (descComponentContent.json && descComponentContent.json.length > 0) {
+      // Basic transformation for rich text JSON to HTML (very simplified)
+      descriptionHtml = descComponentContent.json.map((block: any) => `<p>${block.children?.map((child:any) => child.text).join('') || ''}</p>`).join('');
+    } else if (descComponentContent.html && descComponentContent.html.length > 0) {
+      descriptionHtml = descComponentContent.html.join('\n');
+    }
+    if (!description && descriptionHtml) {
+      description = descriptionHtml.replace(/<[^>]*>?/gm, ''); // Basic strip tags
+    }
+     if (!descriptionHtml && description) {
+        descriptionHtml = `<p>${description.replace(/\n/g, '</p><p>')}</p>`;
+    }
+  }
+  if (!description && node.summary) description = node.summary; // Fallback
 
-    // Since stock is not in BASIC_PRODUCT_FIELDS, set availableForSale based on price or just true
-    const availableForSale = parseFloat(amount) > 0; // Or simply true
+  // Variants
+  const variants = node.variants?.map((variant: any) => {
+    const priceVariantEntry = variant.priceVariants?.find((pv: any) => pv.identifier === 'default') || variant.priceVariants?.[0];
+    const stockLocationEntry = variant.stockLocations?.find((sl:any) => sl.identifier === 'default') || variant.stockLocations?.[0];
+
+    const variantImages = variant.images?.map((img: any) => ({
+      src: img.url,
+      altText: img.altText || variant.name || productName,
+      width: img.width || 0, // Default to 0 if not present
+      height: img.height || 0 // Default to 0 if not present
+    })) || [];
 
     return {
-      id: variant.sku || variant.id, // SKU is in BASIC_PRODUCT_FIELDS
-      title: variantTitle,
-      availableForSale,
-      selectedOptions: [], // attributes are not in BASIC_PRODUCT_FIELDS
-      price: { amount, currencyCode }
+      id: variant.sku || variant.id, // Prefer SKU
+      title: variant.name || productName,
+      availableForSale: (stockLocationEntry?.stock ?? variant.stock ?? 0) > 0,
+      selectedOptions: variant.attributes?.map((attr: any) => ({
+        name: attr.attribute,
+        value: attr.value
+      })) || [],
+      price: {
+        amount: priceVariantEntry?.price?.toString() || "0",
+        currencyCode: priceVariantEntry?.currency || "USD"
+      },
+      images: variantImages
     };
   }) || [];
 
-  // 4. Price Range
-  let minPrice = Infinity;
-  let maxPrice = 0;
-  // currencyCode is static as it's not available in BASIC_PRODUCT_FIELDS priceVariants
-  const rangeCurrencyCode = "USD";
+  // Price Range
+  let minVariantPrice = Infinity;
+  let maxVariantPrice = 0;
+  let currencyCode = "USD"; // Default
+  if (variants.length > 0) {
+    currencyCode = variants[0].price.currencyCode;
+    variants.forEach((v: any) => {
+      const price = parseFloat(v.price.amount);
+      if (!isNaN(price)) {
+        if (price < minVariantPrice) minVariantPrice = price;
+        if (price > maxVariantPrice) maxVariantPrice = price;
+      }
+    });
+  }
+  if (minVariantPrice === Infinity) minVariantPrice = 0;
+  if (maxVariantPrice === -Infinity) maxVariantPrice = 0;
 
-  transformedVariants.forEach((v: ProductVariant) => { // Explicitly type v
-    const price = parseFloat(v.price.amount);
-    if (!isNaN(price)) {
-      if (price < minPrice) minPrice = price;
-      if (price > maxPrice) maxPrice = price;
+
+  // Featured Image
+  let featuredImage: Image = { url: '/placeholder.svg', altText: productName, width: 100, height: 100 };
+  const productImageComponentContent = getComponentContent('product-image');
+  if (productImageComponentContent?.images && productImageComponentContent.images.length > 0) {
+    const img = productImageComponentContent.images[0];
+    featuredImage = {
+      url: img.url,
+      altText: img.altText || productName,
+      width: img.width || 0,
+      height: img.height || 0
+    };
+  } else if (node.defaultVariant?.images && node.defaultVariant.images.length > 0) {
+    const img = node.defaultVariant.images[0];
+    featuredImage = {
+      url: img.url,
+      altText: img.altText || productName,
+      width: img.width || 0,
+      height: img.height || 0
+    };
+  } else if (variants.length > 0 && variants[0].images && variants[0].images.length > 0) {
+     const img = variants[0].images[0];
+     featuredImage = {
+      url: img.src,
+      altText: img.altText || productName,
+      width: img.width || 0,
+      height: img.height || 0
+    };
+  } else if (node.images && node.images.length > 0) {
+     const img = node.images[0];
+     featuredImage = {
+      url: img.url,
+      altText: img.altText || productName,
+      width: img.width || 0,
+      height: img.height || 0
+    };
+  }
+
+
+  // Gallery Images
+  const galleryImagesSet = new Set<string>();
+  let allImagesForGallery: any[] = [];
+
+  const addImageToGallery = (img: any, altSuffix: string = '') => {
+    if (img?.url && !galleryImagesSet.has(img.url)) {
+      galleryImagesSet.add(img.url);
+      allImagesForGallery.push({
+        node: {
+            src: img.url,
+            altText: img.altText || productName + (altSuffix ? ` - ${altSuffix}` : ''),
+            width: img.width || 0,
+            height: img.height || 0
+        }
+      });
+    } else if (img?.src && !galleryImagesSet.has(img.src)) { // For variant images that might have src
+        galleryImagesSet.add(img.src);
+        allImagesForGallery.push({
+            node: {
+                src: img.src,
+                altText: img.altText || productName + (altSuffix ? ` - ${altSuffix}` : ''),
+                width: img.width || 0,
+                height: img.height || 0
+            }
+        });
     }
+  };
+
+  if (featuredImage.url !== '/placeholder.svg') {
+      addImageToGallery(featuredImage);
+  }
+
+  node.images?.forEach((img: any) => addImageToGallery(img));
+
+  variants.forEach((variant: any) => {
+    variant.images?.forEach((img: any) => addImageToGallery(img, variant.title));
   });
-  if (minPrice === Infinity) minPrice = 0;
+
+  productImageComponentContent?.images?.forEach((img: any) => addImageToGallery(img));
 
 
-  // 2. Featured Image
-  const defaultVariantImage = node.variants?.find((v: any) => v.isDefault)?.images?.[0]?.url;
-  const firstVariantImage = node.variants?.[0]?.images?.[0]?.url;
-  const featuredUrl = defaultVariantImage || firstVariantImage || '/placeholder.svg';
+  // Options
+  const optionsMap = new Map<string, Set<string>>();
+  variants.forEach((variant: any) => {
+    variant.selectedOptions.forEach((opt: any) => {
+      if (opt.name && opt.value) { // Ensure name and value exist
+        if (!optionsMap.has(opt.name)) {
+          optionsMap.set(opt.name, new Set());
+        }
+        optionsMap.get(opt.name)!.add(opt.value);
+      }
+    });
+  });
+  const productOptions: ProductOption[] = Array.from(optionsMap.entries()).map(([name, valuesSet], index) => ({
+    id: `${node.id}-opt-${index}`,
+    name,
+    values: Array.from(valuesSet)
+  }));
 
-  const featuredImage: Image = {
-    url: featuredUrl,
-    altText: productTitle,
-    // width and height are removed as they are not in BASIC_PRODUCT_FIELDS for variant images
-  };
+  // SEO
+  const metaTitle = node.meta?.find((m:any) => m.key === 'title')?.value;
+  const metaDescription = node.meta?.find((m:any) => m.key === 'description')?.value;
+  const seoTitle = metaTitle || productName;
+  const seoDescription = metaDescription || description || productName;
 
-  // 5. Images (Gallery)
-  // Simplified: if we have a real featured image, use it for the gallery, otherwise empty.
-  const imagesForGallery = {
-    edges: featuredUrl !== '/placeholder.svg' ? [{ node: { ...featuredImage } }] : []
-  };
+  // Tags
+  const tags: string[] = node.topics?.map((topic: any) => topic.name).filter(Boolean) || [];
 
-  // 6. Description & DescriptionHTML
-  // Simplified as BASIC_PRODUCT_FIELDS does not contain component data for rich descriptions
-  const description = `View details for ${productTitle}.`;
-  const descriptionHtml = `<p>${description}</p>`;
-
-  // 7. Options
-  // BASIC_PRODUCT_FIELDS does not include attributes on variants for options.
-  const productOptions: ProductOption[] = [];
-
-  // 8. SEO
-  const seoTitle = productTitle;
-  const seoDescription = description;
-
-  // 9. Tags
-  // topics are not in BASIC_PRODUCT_FIELDS
-  const tags: string[] = [];
-
-  return {
-    id: node.id, // From BASIC_PRODUCT_FIELDS
-    handle: node.path, // From BASIC_PRODUCT_FIELDS
-    availableForSale: transformedVariants.some((v: ProductVariant) => v.availableForSale),
-    title: productTitle,
+  const transformedProduct: Product = {
+    id: node.id,
+    handle: node.path,
+    availableForSale: variants.some(v => v.availableForSale),
+    title: productName,
     description,
     descriptionHtml,
     options: productOptions,
     priceRange: {
-      minVariantPrice: { amount: minPrice === Infinity ? "0" : minPrice.toString(), currencyCode: rangeCurrencyCode },
-      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: rangeCurrencyCode }
+      minVariantPrice: { amount: minVariantPrice === Infinity ? "0" : minVariantPrice.toString(), currencyCode },
+      maxVariantPrice: { amount: maxVariantPrice.toString(), currencyCode }
     },
     variants: {
-      edges: transformedVariants.map((v: ProductVariant) => ({ node: v }))
+        edges: variants.map(v => ({node: v}))
     },
     featuredImage,
-    images: imagesForGallery,
+    images: {
+        edges: allImagesForGallery
+    },
     seo: { title: seoTitle, description: seoDescription },
     tags,
-    updatedAt: new Date().toISOString(), // No direct updatedAt in BASIC_PRODUCT_FIELDS, use current time
+    updatedAt: node.updatedAt || new Date().toISOString(),
   };
+  return transformedProduct;
 };
 
 // Helper function for transforming Crystallize Folder/Topic/Item to Collection
@@ -460,111 +562,8 @@ export async function getPages(): Promise<Page[]> {
  * @returns {Promise<Product | undefined>} A promise that resolves to the product object, or undefined if not found.
  */
 export async function getProduct(handle: string): Promise<Product | undefined> {
-  // Helper function to transform Crystallize product data to our Product type
-  // This function is designed to work with data from both catalogueApi and searchApi
-  const transformCrystallizeProduct = (node: any): Product => {
-    const variants = node.variants?.map((variant: any) => ({
-      id: variant.sku || variant.id, // Use SKU as ID, fallback to variant ID
-      title: variant.name || node.name, // Variant name, fallback to product name
-      availableForSale: (variant.stockCount || variant.stock || 0) > 0,
-      selectedOptions: variant.attributes?.map((attr: any) => ({
-        name: attr.attribute,
-        value: attr.value
-      })) || [],
-      price: {
-        amount: variant.priceVariants?.find((p:any) => p.identifier === 'default')?.price?.toString() || variant.price?.toString() || "0", // Ensure amount is string
-        currencyCode: variant.priceVariants?.find((p:any) => p.identifier === 'default')?.currency || "USD" // Default currency
-      }
-    })) || [];
-
-    let minPrice = Infinity;
-    let maxPrice = 0;
-    variants.forEach((v: any) => {
-      const price = parseFloat(v.price.amount);
-      if (price < minPrice) minPrice = price;
-      if (price > maxPrice) maxPrice = price;
-    });
-
-    const firstImage = node.defaultVariant?.firstImage || node.variants?.[0]?.images?.[0] || node.images?.[0];
-    const featuredImage: Image = firstImage ? {
-      url: firstImage.url,
-      altText: firstImage.altText || node.name,
-      width: firstImage.width || 0,
-      height: firstImage.height || 0
-    } : { url: '', altText: 'Placeholder', width: 100, height: 100 }; // Fallback image
-
-    const allImages = node.variants?.flatMap((v: any) => v.images || []) || node.images || [];
-
-    // Extract description and descriptionHtml from components
-    // This assumes 'summary' (PlainText) and 'description' (RichText) components
-    let description = '';
-    let descriptionHtml = '';
-    const summaryComponent = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary');
-    if (summaryComponent?.content?.plainText) {
-      description = summaryComponent.content.plainText.join('\\n');
-    }
-    const descriptionComponent = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description');
-    if (descriptionComponent?.content?.json) { // Assuming rich text is in JSON format
-      // Basic transformation for rich text JSON to HTML (very simplified)
-      descriptionHtml = descriptionComponent.content.json.map((block: any) => `<p>${block.children?.map((child:any) => child.text).join('') || ''}</p>`).join('');
-      if (!description && descriptionHtml) description = descriptionHtml.replace(/<[^>]*>?/gm, ''); // Fallback for plain description
-    } else if (descriptionComponent?.content?.html) { // If HTML is directly available
-        descriptionHtml = descriptionComponent.content.html.join('\\n');
-        if (!description && descriptionHtml) description = descriptionHtml.replace(/<[^>]*>?/gm, '');
-    }
-     if (!descriptionHtml && description) descriptionHtml = `<p>${description}</p>`; // Fallback for HTML desc
-
-
-    // Product Options (deriving from variant attributes)
-    const optionsMap = new Map<string, Set<string>>();
-    variants.forEach((variant: any) => {
-      variant.selectedOptions.forEach((opt: any) => {
-        if (!optionsMap.has(opt.name)) {
-          optionsMap.set(opt.name, new Set());
-        }
-        optionsMap.get(opt.name)!.add(opt.value);
-      });
-    });
-    const productOptions: ProductOption[] = Array.from(optionsMap.entries()).map(([name, valuesSet], index) => ({
-      id: `${node.id}-opt-${index}`, // Generate a unique ID for option
-      name,
-      values: Array.from(valuesSet)
-    }));
-
-    const seoTitle = node.meta?.find((m:any) => m.key === 'title')?.value || node.name;
-    const seoDescription = node.meta?.find((m:any) => m.key === 'description')?.value || description || node.name;
-
-    return {
-      id: node.id || node.itemId,
-      handle: node.path,
-      availableForSale: variants.some((v: any) => v.availableForSale),
-      title: node.name,
-      description,
-      descriptionHtml,
-      options: productOptions,
-      priceRange: {
-        minVariantPrice: { amount: minPrice === Infinity ? "0" : minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
-        maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" }
-      },
-      variants: {
-        edges: variants.map((v: any) => ({ node: v }))
-      },
-      featuredImage,
-      images: {
-        edges: allImages.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name, width: img.width || 0, height: img.height || 0 } }))
-      },
-      seo: {
-        title: seoTitle,
-        description: seoDescription,
-      },
-      tags: node.topics?.map((topic: any) => topic.name) || [],
-      updatedAt: node.updatedAt || new Date().toISOString(),
-      // brand: node.components?.find((c: any) => c.id === 'brand')?.content?.text, // Example: if brand is a simple text component
-      // category: node.topics?.find((t:any) => t.isCategory)?.name, // Example: if a topic can be marked as category
-    };
-  };
-
   try {
+    const productPath = handle.startsWith('/') ? handle : `/${handle}`;
     const query = `
       query GET_PRODUCT_BY_HANDLE ($path: String!, $language: String!) {
         catalogue(path: $path, language: $language) {
@@ -575,7 +574,7 @@ export async function getProduct(handle: string): Promise<Product | undefined> {
       }
     `;
     const queryStr = query; 
-    const variablesObj = { path: handle, language: LANGUAGE };
+    const variablesObj = { path: productPath, language: LANGUAGE };
     // Assuming client.catalogueApi can be called directly
     const catalogueResponse = await client.catalogueApi(queryStr, variablesObj);
 
@@ -804,28 +803,28 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       path
       name
       ... on Product { # If the root path itself can be a product
-        ${BASIC_PRODUCT_FIELDS}
+        ${DETAILED_PRODUCT_FIELDS}
       }
       children {
         __typename
         path
         name
         ... on Product {
-          ${BASIC_PRODUCT_FIELDS}
+          ${DETAILED_PRODUCT_FIELDS}
         }
         children {
           __typename
           path
           name
           ... on Product {
-            ${BASIC_PRODUCT_FIELDS}
+            ${DETAILED_PRODUCT_FIELDS}
           }
           children {
             __typename
             path
             name
             ... on Product {
-              ${BASIC_PRODUCT_FIELDS}
+              ${DETAILED_PRODUCT_FIELDS}
             }
           }
         }
