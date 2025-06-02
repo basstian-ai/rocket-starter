@@ -837,48 +837,28 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       path
       name
       ... on Product {
-        components {
-          id
-          name
-          ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
-          ... on ComponentListPrice { content { ... on NumericContent { number } } }
-        }
+        ${PRODUCT_COMMON_QUERY_FIELDS}
       }
       children { # Level 1 children (items at Level 2)
         __typename
         path
         name
         ... on Product {
-          components {
-            id
-            name
-            ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
-            ... on ComponentListPrice { content { ... on NumericContent { number } } }
-          }
+          ${PRODUCT_COMMON_QUERY_FIELDS}
         }
         children { # Level 2 children (items at Level 3)
           __typename
           path
           name
           ... on Product {
-            components {
-              id
-              name
-              ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
-              ... on ComponentListPrice { content { ... on NumericContent { number } } }
-            }
+            ${PRODUCT_COMMON_QUERY_FIELDS}
           }
           children { # Level 3 children (items at Level 4)
             __typename
             path
             name
             ... on Product {
-              components {
-                id
-                name
-                ... on ComponentProductImage { content { ... on ImageContent { images { url altText } } } }
-                ... on ComponentListPrice { content { ... on NumericContent { number } } }
-              }
+              ${PRODUCT_COMMON_QUERY_FIELDS}
             }
             # No children here to limit depth to 4 actual item levels in this query structure
           }
