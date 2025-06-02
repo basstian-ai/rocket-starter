@@ -154,8 +154,11 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   // Add images from product-level specific component, ensuring not to add duplicates of featuredImage if it came from there
   if (node.productImageFromComponent?.content?.images) {
      node.productImageFromComponent.content.images.forEach((img: any) => {
-        if (!featuredImageSource || img.url !== featuredImageSource.url) {
-            collectedGalleryImages.push(img);
+        if (!featuredImageSource || img.url !== featuredImageSource.url) { // don't add if it's already the featured image
+            // Check if already added from variants (if product image is also a variant image)
+            if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
+                 collectedGalleryImages.push(img);
+            }
         } else if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
             // If it IS the featured image source, only add if not already pushed from variants.
             // This handles case where featuredImageSource was from defaultVariant but productImageFromComponent also has it.
@@ -236,6 +239,10 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     featuredImage,
     images: imagesForGallery,
     seo: { title: seoTitle, description: seoDescription },
+    tags: node.topics?.map((topic: any) => topic.name) || [],
+    updatedAt: new Date().toISOString(),
+  };
+};
 
 // Helper function for transforming Crystallize Folder/Topic/Item to Collection
 // TODO: This function needs review based on the actual data structure returned by the "starter-kit" tenant.
@@ -1097,3 +1104,5 @@ export async function getArticle(handle: string): Promise<Article | undefined> {
   return Promise.resolve(article);
 }
 
+
+[end of lib/bff/index.ts]
