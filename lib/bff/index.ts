@@ -885,10 +885,14 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       ... on Product {
         ${PRODUCT_COMMON_QUERY_FIELDS}
         productNameFromComponent: component(id: "product-name") {
-          ... on SingleLineContent { text }
+          content {
+            ... on SingleLineContent { text }
+          }
         }
         productImageFromComponent: component(id: "product-image") {
-          ... on ImageContent { images { url altText width height } }
+          content {
+            ... on ImageContent { images { url altText width height } }
+          }
         }
         components {
           id
@@ -908,10 +912,14 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
         ... on Product {
           ${PRODUCT_COMMON_QUERY_FIELDS}
           productNameFromComponent: component(id: "product-name") {
-            ... on SingleLineContent { text }
+            content {
+              ... on SingleLineContent { text }
+            }
           }
           productImageFromComponent: component(id: "product-image") {
-            ... on ImageContent { images { url altText width height } }
+            content {
+              ... on ImageContent { images { url altText width height } }
+            }
           }
           components {
             id
@@ -931,10 +939,14 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
           ... on Product {
             ${PRODUCT_COMMON_QUERY_FIELDS}
             productNameFromComponent: component(id: "product-name") {
-              ... on SingleLineContent { text }
+              content {
+                ... on SingleLineContent { text }
+              }
             }
             productImageFromComponent: component(id: "product-image") {
-              ... on ImageContent { images { url altText width height } }
+              content {
+                ... on ImageContent { images { url altText width height } }
+              }
             }
             components {
               id
@@ -954,10 +966,14 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
             ... on Product {
               ${PRODUCT_COMMON_QUERY_FIELDS}
               productNameFromComponent: component(id: "product-name") {
-                ... on SingleLineContent { text }
+                content {
+                  ... on SingleLineContent { text }
+                }
               }
               productImageFromComponent: component(id: "product-image") {
-                ... on ImageContent { images { url altText width height } }
+                content {
+                  ... on ImageContent { images { url altText width height } }
+                }
               }
               components {
                 id
