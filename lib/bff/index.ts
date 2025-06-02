@@ -16,190 +16,180 @@ import client from 'lib/crystallize/index';
 
 const LANGUAGE = "en"; // Default language for Crystallize API calls
 
-// Common query fields for products, used by getProduct, getProducts, getCollectionProducts
-// TODO: Review and adjust this query against the "starter-kit" tenant's specific schema.
-// Drastically simplified to avoid syntax errors and focus on core fields.
+// TODO: THIS PRODUCT_COMMON_QUERY_FIELDS IS INTENTIONALLY MINIMAL TO ENSURE A SUCCESSFUL BUILD.
+// IT MUST BE ENHANCED WITH SHAPE-SPECIFIC COMPONENT QUERIES AND OTHER FIELDS
+// (REFERENCING starter-kit-catalogue.schema.json AND getToolsProducts AS AN EXAMPLE)
+// TO RESTORE FULL PRODUCT DATA FOR THE PDP AND OTHER PRODUCT LISTINGS.
 const PRODUCT_COMMON_QUERY_FIELDS = `
   id
   name
   path
-  # TODO: featuredImage might be available directly, e.g., featuredImage { url altText }
-  # If not, it will be derived from the first variant's image in transformCrystallizeProduct.
+  # slug # The schema uses 'path' for full paths, handle/slug is derived in transformer.
+  # seo Title/Description are not standard, likely component-based or from a 'meta' field not yet adapted.
+  # vatType # Not available in starter-kit Product type per schema.
+
   variants {
     id
     sku
     name
-    stock # TODO: Confirm if 'stock' or 'stockCount' is correct for starter-kit
-    price # TODO: Confirm if direct 'price' or 'priceVariants' is primary for starter-kit
-    priceVariants { identifier price currency }
-    attributes { attribute value }
-    images { url altText }
+    isDefault
+    price # Direct price from variant
+    priceVariants { # Price per price list/currency
+      identifier
+      price
+      currency
+    }
+    stock # Stock count
+    # attributes { attribute value } # Standard in Crystallize, should be safe to add if needed by PDP variant selection
+    images { # Images for this specific variant
+      url
+      altText
+    }
   }
-  topics { name }
+  topics { name } # Used for tags
 `;
 
-// Helper function to transform Crystallize product data to our Product type
-// TODO: This function needs significant review based on the actual data structure returned by the "starter-kit" tenant.
+// TODO: THIS TRANSFORMER IS INTENTIONALLY MINIMAL AND USES MANY FALLBACKS
+// DUE TO THE SIMPLIFIED PRODUCT_COMMON_QUERY_FIELDS.
+// IT MUST BE ENHANCED TO CORRECTLY SOURCE DATA FROM SHAPE-SPECIFIC COMPONENTS
+// (E.G., FOR DESCRIPTION, DETAILED IMAGES, SEO FIELDS, CUSTOM ATTRIBUTES)
+// ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
 const transformCrystallizeProduct = (node: any): Product | null => {
-  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) { // Basic check if it's a product-like item
+  if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) {
     return null; 
   }
-  const variants = node.variants?.map((variant: any) => ({
-    id: variant.sku || variant.id, // TODO: Ensure 'id' or 'sku' is consistently available and preferred.
-    title: variant.name || node.name,
-    availableForSale: (variant.stockCount || variant.stock || 0) > 0, // TODO: Confirm 'stockCount' or 'stock' field.
-    selectedOptions: variant.attributes?.map((attr: any) => ({
-      name: attr.attribute,
-      value: attr.value
-    })) || [],
-    price: { // TODO: Confirm price structure, especially 'priceVariants' vs 'price'.
-      amount: variant.priceVariants?.find((p:any) => p.identifier === 'default')?.price?.toString() || variant.price?.toString() || "0",
-      currencyCode: variant.priceVariants?.find((p:any) => p.identifier === 'default')?.currency || "USD" // TODO: Confirm currency source
+
+  const variants = node.variants?.map((variant: any) => {
+    // Attempt to get price from 'price' field or first 'priceVariants'
+    let amount = variant.price?.toString() || "0";
+    let currencyCode = "USD"; // Default currency
+
+    if (variant.priceVariants && variant.priceVariants.length > 0) {
+      const defaultPriceVariant = variant.priceVariants.find((pv: any) => pv.identifier === 'default') || variant.priceVariants[0];
+      if (defaultPriceVariant) {
+        amount = defaultPriceVariant.price?.toString() || amount;
+        currencyCode = defaultPriceVariant.currency || currencyCode;
+      }
     }
-  })) || [];
+
+    return {
+      id: variant.sku || variant.id,
+      title: variant.name || node.name,
+      availableForSale: (variant.stock || 0) > 0,
+      selectedOptions: variant.attributes?.map((attr: any) => ({ // Assuming attributes exist
+        name: attr.attribute,
+        value: attr.value
+      })) || [],
+      price: { amount, currencyCode }
+    };
+  }) || [];
 
   let minPrice = Infinity;
   let maxPrice = 0;
-  variants.forEach((v: any) => { // TODO: Ensure v.price.amount is valid and numeric.
+  variants.forEach((v: any) => {
     const price = parseFloat(v.price.amount);
-    if (price < minPrice) minPrice = price;
-    if (price > maxPrice) maxPrice = price;
+    if (!isNaN(price)) {
+      if (price < minPrice) minPrice = price;
+      if (price > maxPrice) maxPrice = price;
+    }
   });
+   if (minPrice === Infinity) minPrice = 0; // Ensure minPrice is not Infinity if no variants or prices
 
-  // TODO: Logic for featuredImage needs update as `defaultVariant` and top-level `images` were removed from GQL query.
-  // This now primarily relies on the first image of the first variant if available.
-  // The schema might offer a direct `featuredImage` field on Product.
-  const firstVariantImage = node.variants?.[0]?.images?.[0];
-  const featuredImage: Image = firstVariantImage ? {
-    url: firstVariantImage.url,
-    altText: firstVariantImage.altText || node.name,
-    // width: firstVariantImage.width || 0, // Not available on Image type
-    // height: firstVariantImage.height || 0, // Not available on Image type
-  } : { url: '', altText: 'Placeholder' }; // Removed default width/height
+  // Fallback for featuredImage: use the first image of the first variant, or a placeholder.
+  const firstVariantWithImage = node.variants?.find((v:any) => v.images && v.images.length > 0);
+  const featuredImageSource = firstVariantWithImage?.images[0];
+  const featuredImage: Image = featuredImageSource ?
+    { url: featuredImageSource.url, altText: featuredImageSource.altText || node.name } :
+    { url: '', altText: 'Placeholder' };
 
-  // TODO: `allImages` logic needs update as top-level `node.images` was removed from GQL query.
-  const allImages = node.variants?.flatMap((v: any) => v.images || []) || [];
-
-  // TODO: Description logic is commented out as `components` field was removed from GQL query.
-  // Need to fetch specific description components based on actual "starter-kit" schema.
-  let description = ''; // node.name || 'Default product description'; // Default or from name
-  let descriptionHtml = ''; // `<p>${description}</p>`;
-  // const summaryComponent = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary' || c.type === 'singleLine');
-  // if (summaryComponent?.content?.plainText) {
-  //   description = summaryComponent.content.plainText.join('\\n');
-  // } else if (summaryComponent?.content?.text) {
-  //   description = summaryComponent.content.text;
-  // }
-
-  // const descriptionComponent = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description' || c.type === 'richText');
-  // if (descriptionComponent?.content?.json) {
-  //   descriptionHtml = descriptionComponent.content.json.map((block: any) => `<p>${block.children?.map((child:any) => child.text).join('') || ''}</p>`).join('');
-  //   if (!description && descriptionHtml) description = descriptionHtml.replace(/<[^>]*>?/gm, '');
-  // } else if (descriptionComponent?.content?.html) {
-  //     descriptionHtml = descriptionComponent.content.html.join('\\n');
-  //     if (!description && descriptionHtml) description = descriptionHtml.replace(/<[^>]*>?/gm, '');
-  // } else if (descriptionComponent?.content?.plainText) {
-  //     descriptionHtml = `<p>${descriptionComponent.content.plainText.join('\\n')}</p>`;
-  //     if (!description) description = descriptionComponent.content.plainText.join('\\n');
-  // }
-  // if (!descriptionHtml && description) descriptionHtml = `<p>${description}</p>`;
+  // Fallback for images (gallery): use all images from all variants.
+  const allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name } })) || []) || [];
+  const imagesForGallery = { edges: allVariantImages };
   
-  const optionsMap = new Map<string, Set<string>>();
-  variants.forEach((variant: any) => { // TODO: Ensure variant.selectedOptions structure is correct.
-    variant.selectedOptions?.forEach((opt: any) => { // Added optional chaining
-      if (!optionsMap.has(opt.name)) {
-        optionsMap.set(opt.name, new Set());
-      }
-      optionsMap.get(opt.name)!.add(opt.value);
-    });
-  });
-  const productOptions: ProductOption[] = Array.from(optionsMap.entries()).map(([name, valuesSet], index) => ({
-    id: `${node.id}-opt-${index}`, // Uses node.id as itemId was removed from GQL query.
-    name,
-    values: Array.from(valuesSet)
-  }));
+  const description = node.name || 'Product description placeholder.'; // Basic fallback
+  const descriptionHtml = `<p>${description}</p>`;
 
-  // TODO: SEO logic needs update as `metaConnection` (aliased as `meta`) was removed from GQL query.
-  // Defaulting to product name and basic description.
+  const productOptions: ProductOption[] = []; // Placeholder, as attributes not fully queried/processed for options
+  if (node.variants && node.variants.length > 0) {
+    const tempOptionsMap = new Map<string, Set<string>>();
+    node.variants.forEach((variant:any) => {
+      variant.attributes?.forEach((attr: any) => {
+        if (!tempOptionsMap.has(attr.attribute)) {
+          tempOptionsMap.set(attr.attribute, new Set());
+        }
+        tempOptionsMap.get(attr.attribute)!.add(attr.value);
+      });
+    });
+    tempOptionsMap.forEach((values, name) => {
+      productOptions.push({ id: name, name, values: Array.from(values) });
+    });
+  }
+
   const seoTitle = node.name || 'Product';
-  const seoDescription = description || node.name || 'Product description';
+  const seoDescription = description;
 
   return {
-    id: node.id, // itemId was removed from GQL query.
-    handle: node.path, // Assuming path is the full path, handle might need stripping /
+    id: node.id,
+    handle: node.path,
     availableForSale: variants.some((v: any) => v.availableForSale),
     title: node.name,
     description,
-    descriptionHtml, // TODO: Ensure this is correctly populated if possible from new schema.
-    options: productOptions,
-    priceRange: { // TODO: Confirm currencyCode source if variants can have different currencies.
-      minVariantPrice: { amount: minPrice === Infinity ? "0" : minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
+    descriptionHtml,
+    options: productOptions, // Simplified based on available variant attributes
+    priceRange: {
+      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
       maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" }
     },
     variants: {
       edges: variants.map((v: any) => ({ node: v }))
     },
-    featuredImage, // TODO: Ensure this is correctly populated.
-    images: { // TODO: `Product.images` was removed from GQL. This will likely be empty or needs restructuring.
-      edges: allImages.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name /*, width: img.width || 0, height: img.height || 0*/ } }))
-    },
-    seo: { title: seoTitle, description: seoDescription }, // TODO: Ensure this is correctly populated.
-    tags: node.topics?.map((topic: any) => topic.name) || [], // Assuming `topics` is available.
-    updatedAt: new Date().toISOString(), // Field `updatedAt` was removed from GQL query for Product. Defaulting.
+    featuredImage,
+    images: imagesForGallery,
+    seo: { title: seoTitle, description: seoDescription },
+    tags: node.topics?.map((topic: any) => topic.name) || [],
+    updatedAt: new Date().toISOString(),
   };
 };
 
 // Helper function for transforming Crystallize Folder/Topic/Item to Collection
-// TODO: This function needs review based on the actual data structure returned by the "starter-kit" tenant,
-// especially if `components`, `images`, `defaultVariant`, `meta` were used for Collection transformation implicitly.
+// TODO: This function needs review based on the actual data structure returned by the "starter-kit" tenant.
 const transformCrystallizeCollection = (node: any): Collection | null => {
-  if (!node || (node.__typename && !['Folder', 'Topic', 'Product'].includes(node.__typename) && node.type !== 'folder' && !node.name) ) { // Basic check
+  if (!node || (node.__typename && !['Folder', 'Topic', 'Product'].includes(node.__typename) && node.type !== 'folder' && !node.name) ) {
       return null;
   }
 
-  // TODO: Description logic might need update if `components` structure is different or unavailable.
   let description = '';
-  const summaryComponent = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary' || c.type === 'singleLine');
-   if (summaryComponent?.content?.plainText) {
-    description = summaryComponent.content.plainText.join('\\n');
-  } else if (summaryComponent?.content?.text) {
-    description = summaryComponent.content.text;
+  // Attempt to get description from a 'summary' or 'description' component if Product is used as Collection
+  // This part is highly speculative as 'components' field on Product was problematic
+  const summaryComp = node.components?.find((c: any) => c.id === 'summary' || c.name === 'Summary');
+  if (summaryComp?.content?.plainText) {
+    description = Array.isArray(summaryComp.content.plainText) ? summaryComp.content.plainText.join('\\n') : String(summaryComp.content.plainText);
   } else {
-    const genericDescComp = node.components?.find((c:any) => c.name === 'Description' || c.id === 'description');
-    if (genericDescComp?.content?.plainText) {
-        description = genericDescComp.content.plainText.join('\\n');
-    } else if (genericDescComp?.content?.json) {
-        description = genericDescComp.content.json.map((b:any) => b.children?.map((c:any) => c.text).join('')).join(' ');
+    const descComp = node.components?.find((c: any) => c.id === 'description' || c.name === 'Description');
+    if (descComp?.content?.plainText) {
+      description = Array.isArray(descComp.content.plainText) ? descComp.content.plainText.join('\\n') : String(descComp.content.plainText);
     }
   }
 
-  // TODO: Featured image logic might need update if `images` or `defaultVariant` structure is different or unavailable.
-  const firstImage = node.images?.[0] || node.defaultVariant?.firstImage;
-  const featuredImage: Image | undefined = firstImage ? {
-    url: firstImage.url,
-    altText: firstImage.altText || node.name,
-    // width: firstImage.width || 0, // Not available on Image type
-    // height: firstImage.height || 0, // Not available on Image type
+  const firstProductVariantImage = node.variants?.[0]?.images?.[0]; // If product is used as collection
+  const featuredImage: Image | undefined = firstProductVariantImage ? {
+    url: firstProductVariantImage.url,
+    altText: firstProductVariantImage.altText || node.name,
   } : undefined;
 
-  // TODO: SEO logic might need update if `metaConnection` structure is different or unavailable.
-  const metaSeo = node.meta?.edges?.reduce((acc:any, edge:any) => {
-    acc[edge.node.key] = edge.node.value;
-    return acc;
-  }, {}) || {};
-  const seoTitle = metaSeo.title || node.name;
-  const seoDescription = metaSeo.description || description || node.name;
+  const seoTitle = node.name || 'Collection';
+  const seoDescription = description || node.name || 'Collection description';
   
   const handle = node.path?.split('/').pop() || node.path || '';
 
   return {
     handle,
     title: node.name,
-    description, // TODO: Ensure this is correctly populated.
-    seo: { title: seoTitle, description: seoDescription }, // TODO: Ensure this is correctly populated.
-    updatedAt: node.updatedAt || new Date().toISOString(), // TODO: Field `updatedAt` might not be available directly on Collection items.
+    description,
+    seo: { title: seoTitle, description: seoDescription },
+    updatedAt: node.updatedAt || new Date().toISOString(), // Assuming 'updatedAt' might exist on Folder/Topic items
     path: node.path,
-    featuredImage // TODO: Ensure this is correctly populated.
+    featuredImage
   };
 };
 
