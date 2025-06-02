@@ -9,6 +9,7 @@ import {
   Page,
   Product,
   ProductOption, // Added ProductOption for transformCrystallizeProduct
+  ProductVariant, // Added ProductVariant
   Article // Added Article type
 } from './types';
 import { dummyMenu, dummyCart, dummyArticles } from './dummy-data'; // Removed dummyCollections, dummyProducts
@@ -202,6 +203,13 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     };
   }
 
+  // Ensure featuredImage has a URL, otherwise use a placeholder
+  if (!featuredImage.url) {
+    featuredImage.url = '/placeholder.svg'; // Or any other placeholder path
+    featuredImage.altText = featuredImage.altText || productTitle || 'Placeholder image';
+    featuredImage.width = featuredImage.width || 100; // Default placeholder width
+    featuredImage.height = featuredImage.height || 100; // Default placeholder height
+  }
 
   // 5. Images (Gallery)
   const collectedGalleryImages: any[] = [];
@@ -324,7 +332,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   return {
     id: node.id,
     handle: node.path,
-    availableForSale: transformedVariants.some(v => v.availableForSale),
+    availableForSale: transformedVariants.some((v: ProductVariant) => v.availableForSale),
     title: productTitle,
     description,
     descriptionHtml,
