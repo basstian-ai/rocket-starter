@@ -13,10 +13,10 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 
 export async function generateMetadata(props: {
-  params: Promise<{ handle: string }>;
+  params: { handle: string[] };
 }): Promise<Metadata> {
-  const params = await props.params;
-  const product = await getProduct(params.handle);
+  const pathString = props.params.handle.join('/');
+  const product = await getProduct(pathString);
 
   if (!product) return notFound();
 
@@ -49,9 +49,9 @@ export async function generateMetadata(props: {
   };
 }
 
-export default async function ProductPage(props: { params: Promise<{ handle: string }> }) {
-  const params = await props.params;
-  const product = await getProduct(params.handle);
+export default async function ProductPage(props: { params: { handle: string[] } }) {
+  const pathString = props.params.handle.join('/');
+  const product = await getProduct(pathString);
 
   if (!product) return notFound();
 
