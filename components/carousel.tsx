@@ -1,4 +1,3 @@
-// import { getCollectionProducts } from 'lib/bff';
 import { getSubtreeProducts } from 'lib/bff';
 import Link from 'next/link';
 import { GridTileImage } from './grid/tile';
