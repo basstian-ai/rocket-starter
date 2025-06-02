@@ -96,15 +96,57 @@ const transformCrystallizeProduct = (node: any): Product | null => {
    if (minPrice === Infinity) minPrice = 0; // Ensure minPrice is not Infinity if no variants or prices
 
   // Fallback for featuredImage: use the first image of the first variant, or a placeholder.
-  const firstVariantWithImage = node.variants?.find((v:any) => v.images && v.images.length > 0);
-  const featuredImageSource = firstVariantWithImage?.images[0];
-  const featuredImage: Image = featuredImageSource ?
-    { url: featuredImageSource.url, altText: featuredImageSource.altText || node.name } :
-    { url: '', altText: 'Placeholder' };
+  let firstVariantWithImage = node.variants?.find((v:any) => v.images && v.images.length > 0);
+  let featuredImageSource = firstVariantWithImage?.images[0];
+  let featuredImage: Image = featuredImageSource ?
+    {
+      url: featuredImageSource.url,
+      altText: featuredImageSource.altText || node.name || 'Product image',
+      width: featuredImageSource.width,
+      height: featuredImageSource.height
+    } :
+    { url: '', altText: 'Placeholder', width: 0, height: 0 };
+
+  // If no image from variants, try from product components
+  if (!featuredImage.url && node.components) {
+    const imageComponent = node.components?.find(
+      (c: any) => (c.name === 'Images' || c.name === 'Image' || c.name === 'Featured Image' || c.type === 'images') &&
+                   c.content?.images && c.content.images.length > 0
+    );
+    if (imageComponent) {
+      featuredImageSource = imageComponent.content.images[0];
+      if (featuredImageSource) { // Ensure source is valid before assigning
+        featuredImage = {
+          url: featuredImageSource.url,
+          altText: featuredImageSource.altText || node.name || 'Product image',
+          width: featuredImageSource.width,
+          height: featuredImageSource.height
+        };
+      }
+    }
+  }
+  // Ensure placeholder if still no image
+  if (!featuredImage.url) {
+      featuredImage = { url: '', altText: 'Placeholder', width: 0, height: 0 };
+  }
+
 
   // Fallback for images (gallery): use all images from all variants.
-  const allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name } })) || []) || [];
-  const imagesForGallery = { edges: allVariantImages };
+  let allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name || 'Product image' } })) || []) || [];
+  let imagesForGallery = { edges: allVariantImages };
+
+  // If no gallery images from variants, try from product components
+  if (imagesForGallery.edges.length === 0 && node.components) {
+    const galleryComponent = node.components?.find(
+      (c: any) => (c.name === 'Gallery' || c.type === 'images') &&
+                   c.content?.images && c.content.images.length > 0
+    );
+    if (galleryComponent) {
+      imagesForGallery.edges = galleryComponent.content.images.map((img: any) => ({
+        node: { url: img.url, altText: img.altText || node.name || 'Product image' }
+      }));
+    }
+  }
   
   const description = node.name || 'Product description placeholder.'; // Basic fallback
   const descriptionHtml = `<p>${description}</p>`;
@@ -837,6 +879,16 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       name
       ... on Product {
         ${PRODUCT_COMMON_QUERY_FIELDS}
+        components {
+          id
+          name
+          type
+          content {
+            ... on ImageContent { images { url altText } }
+            ... on NumericContent { number }
+            ... on SingleLineContent { text }
+          }
+        }
       }
       children { # Level 1 children (items at Level 2)
         __typename
@@ -844,6 +896,16 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
         name
         ... on Product {
           ${PRODUCT_COMMON_QUERY_FIELDS}
+          components {
+            id
+            name
+            type
+            content {
+              ... on ImageContent { images { url altText } }
+              ... on NumericContent { number }
+              ... on SingleLineContent { text }
+            }
+          }
         }
         children { # Level 2 children (items at Level 3)
           __typename
@@ -851,6 +913,16 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
           name
           ... on Product {
             ${PRODUCT_COMMON_QUERY_FIELDS}
+            components {
+              id
+              name
+              type
+              content {
+                ... on ImageContent { images { url altText } }
+                ... on NumericContent { number }
+                ... on SingleLineContent { text }
+              }
+            }
           }
           children { # Level 3 children (items at Level 4)
             __typename
@@ -858,6 +930,16 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
             name
             ... on Product {
               ${PRODUCT_COMMON_QUERY_FIELDS}
+              components {
+                id
+                name
+                type
+                content {
+                  ... on ImageContent { images { url altText } }
+                  ... on NumericContent { number }
+                  ... on SingleLineContent { text }
+                }
+              }
             }
             # No children here to limit depth to 4 actual item levels in this query structure
           }
