@@ -24,29 +24,28 @@ const PRODUCT_COMMON_QUERY_FIELDS = `
   id
   name
   path
-  # slug # The schema uses 'path' for full paths, handle/slug is derived in transformer.
-  # seo Title/Description are not standard, likely component-based or from a 'meta' field not yet adapted.
-  # vatType # Not available in starter-kit Product type per schema.
+  topics { name }
 
   variants {
     id
     sku
     name
     isDefault
-    price # Direct price from variant
-    priceVariants { # Price per price list/currency
+    price
+    priceVariants {
       identifier
       price
       currency
     }
-    stock # Stock count
-    # attributes { attribute value } # Standard in Crystallize, should be safe to add if needed by PDP variant selection
-    images { # Images for this specific variant
+    stock
+    images {
       url
       altText
+      width
+      height
     }
+    attributes { attribute value } # Assuming attributes are needed for options
   }
-  topics { name } # Used for tags
 `;
 
 // TODO: THIS TRANSFORMER IS INTENTIONALLY MINIMAL AND USES MANY FALLBACKS
@@ -56,27 +55,31 @@ const PRODUCT_COMMON_QUERY_FIELDS = `
 // ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
 const transformCrystallizeProduct = (node: any): Product | null => {
   if (!node || (node.__typename && node.__typename !== 'Product' && node.type !== 'product' && !node.name)) {
-    return null; 
+    return null;
   }
 
-  const variants = node.variants?.map((variant: any) => {
-    // Attempt to get price from 'price' field or first 'priceVariants'
-    let amount = variant.price?.toString() || "0";
-    let currencyCode = "USD"; // Default currency
+  const productTitle = node.productNameFromComponent?.content?.text || node.name || 'Untitled Product';
+
+  // Transform variants using direct fields from PRODUCT_COMMON_QUERY_FIELDS
+  const variants = node.variants?.map((variant: any) => { // variant is raw variant from API
+    const variantTitle = variant.name || productTitle;
+
+    let amount = variant.price?.toString() || "0"; // Default to direct variant.price
+    let currencyCode = "EUR"; // Default to EUR as per spec
 
     if (variant.priceVariants && variant.priceVariants.length > 0) {
       const defaultPriceVariant = variant.priceVariants.find((pv: any) => pv.identifier === 'default') || variant.priceVariants[0];
       if (defaultPriceVariant) {
         amount = defaultPriceVariant.price?.toString() || amount;
-        currencyCode = defaultPriceVariant.currency || currencyCode;
+        currencyCode = defaultPriceVariant.currency || currencyCode; // Use currency from priceVariant if present
       }
     }
 
     return {
-      id: variant.sku || variant.id,
-      title: variant.name || node.name,
-      availableForSale: (variant.stock || 0) > 0,
-      selectedOptions: variant.attributes?.map((attr: any) => ({ // Assuming attributes exist
+      id: variant.sku || variant.id, // Use direct sku
+      title: variantTitle,
+      availableForSale: (variant.stock || 0) > 0, // Use direct stock
+      selectedOptions: variant.attributes?.map((attr: any) => ({ // Use direct attributes
         name: attr.attribute,
         value: attr.value
       })) || [],
@@ -86,31 +89,121 @@ const transformCrystallizeProduct = (node: any): Product | null => {
 
   let minPrice = Infinity;
   let maxPrice = 0;
-  variants.forEach((v: any) => {
+  variants.forEach((v: any) => { // v is transformed variant here
     const price = parseFloat(v.price.amount);
     if (!isNaN(price)) {
       if (price < minPrice) minPrice = price;
       if (price > maxPrice) maxPrice = price;
     }
   });
-   if (minPrice === Infinity) minPrice = 0; // Ensure minPrice is not Infinity if no variants or prices
+  if (minPrice === Infinity) minPrice = 0;
 
-  // Fallback for featuredImage: use the first image of the first variant, or a placeholder.
-  const firstVariantWithImage = node.variants?.find((v:any) => v.images && v.images.length > 0);
-  const featuredImageSource = firstVariantWithImage?.images[0];
-  const featuredImage: Image = featuredImageSource ?
-    { url: featuredImageSource.url, altText: featuredImageSource.altText || node.name } :
-    { url: '', altText: 'Placeholder' };
+  // featuredImage logic
+  let featuredImageSource: any = null;
 
-  // Fallback for images (gallery): use all images from all variants.
-  const allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name } })) || []) || [];
-  const imagesForGallery = { edges: allVariantImages };
-  
-  const description = node.name || 'Product description placeholder.'; // Basic fallback
+  // 1. Try from default variant's direct images field
+  const defaultVariantFromRaw = node.variants?.find((v: any) => v.isDefault); // from raw API node.variants
+  if (defaultVariantFromRaw?.images?.length > 0) {
+    featuredImageSource = defaultVariantFromRaw.images[0];
+  }
+
+  // 2. If not, try from product-level productImageFromComponent
+  if (!featuredImageSource && node.productImageFromComponent?.content?.images?.length > 0) {
+    featuredImageSource = node.productImageFromComponent.content.images[0];
+  }
+
+  // 3. If still not found, try from the first variant that has a direct image
+  if (!featuredImageSource) {
+    const firstVariantWithDirectImage = node.variants?.find((v: any) => v.images?.length > 0); // from raw API node.variants
+    if (firstVariantWithDirectImage) {
+      featuredImageSource = firstVariantWithDirectImage.images[0];
+    }
+  }
+
+  // 4. If still not found, try from generic product components
+  if (!featuredImageSource && node.components) {
+    const imageComponent = node.components?.find(
+      (c: any) => (c.name === 'Images' || c.name === 'Image' || c.name === 'Featured Image' || c.type === 'images') &&
+                   c.content?.images && c.content.images.length > 0
+    );
+    if (imageComponent) {
+      featuredImageSource = imageComponent.content.images[0];
+    }
+  }
+
+  let featuredImage: Image = { url: '', altText: 'Placeholder', width: 0, height: 0 };
+  if (featuredImageSource) {
+    featuredImage = {
+      url: featuredImageSource.url,
+      altText: featuredImageSource.altText || productTitle || 'Product image',
+      width: featuredImageSource.width || 0,
+      height: featuredImageSource.height || 0
+    };
+  }
+  if (!featuredImage.url) { // Final check for placeholder
+      featuredImage = { url: '', altText: 'Placeholder', width: 0, height: 0 };
+  }
+
+  // Gallery images logic
+  let collectedGalleryImages: any[] = [];
+  node.variants?.forEach((v: any) => { // v is raw variant from API
+    if (v.images) { // Use direct images field from raw variant
+      collectedGalleryImages.push(...v.images);
+    }
+  });
+  // Add images from product-level specific component, ensuring not to add duplicates of featuredImage if it came from there
+  if (node.productImageFromComponent?.content?.images) {
+     node.productImageFromComponent.content.images.forEach((img: any) => {
+        if (!featuredImageSource || img.url !== featuredImageSource.url) { // don't add if it's already the featured image
+            // Check if already added from variants (if product image is also a variant image)
+            if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
+                 collectedGalleryImages.push(img);
+            }
+        } else if (collectedGalleryImages.findIndex(ci => ci.url === img.url) === -1) {
+            // If it IS the featured image source, only add if not already pushed from variants.
+            // This handles case where featuredImageSource was from defaultVariant but productImageFromComponent also has it.
+            collectedGalleryImages.push(img);
+        }
+     });
+  }
+
+  const uniqueImageUrls = new Set();
+  const uniqueGalleryImages = collectedGalleryImages.filter(img => {
+    if (!img.url || uniqueImageUrls.has(img.url)) return false;
+    uniqueImageUrls.add(img.url);
+    return true;
+  });
+
+  let imagesForGallery = {
+    edges: uniqueGalleryImages.map((img: any) => ({
+      node: {
+        url: img.url,
+        altText: img.altText || productTitle || 'Product image',
+        width: img.width || 0,
+        height: img.height || 0
+      }
+    }))
+  };
+
+  // Fallback to generic component search for gallery if still empty
+  if (imagesForGallery.edges.length === 0 && node.components) {
+    const galleryComponent = node.components?.find(
+      (c: any) => (c.name === 'Gallery' || c.type === 'images') &&
+                   c.content?.images && c.content.images.length > 0
+    );
+    if (galleryComponent) {
+      imagesForGallery.edges = galleryComponent.content.images.map((img: any) => ({
+        node: { url: img.url, altText: img.altText || productTitle || 'Product image', width: img.width || 0, height: img.height || 0 }
+      }));
+    }
+  }
+
+  const description = productTitle || 'Product description placeholder.';
   const descriptionHtml = `<p>${description}</p>`;
 
-  const productOptions: ProductOption[] = []; // Placeholder, as attributes not fully queried/processed for options
-  if (node.variants && node.variants.length > 0) {
+  // Product Options from variant attributes
+  const productOptions: ProductOption[] = [];
+  if (node.variants && node.variants.length > 0) { // Iterate over raw variants from API (node.variants)
     const tempOptionsMap = new Map<string, Set<string>>();
     node.variants.forEach((variant:any) => {
       variant.attributes?.forEach((attr: any) => {
@@ -125,23 +218,23 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     });
   }
 
-  const seoTitle = node.name || 'Product';
+  const seoTitle = productTitle || 'Product';
   const seoDescription = description;
 
   return {
-    id: node.id,
+    id: node.id, // Product ID from the root of the item
     handle: node.path,
-    availableForSale: variants.some((v: any) => v.availableForSale),
-    title: node.name,
+    availableForSale: variants.some((v: any) => v.availableForSale), // Check transformed variants
+    title: productTitle,
     description,
     descriptionHtml,
-    options: productOptions, // Simplified based on available variant attributes
+    options: productOptions,
     priceRange: {
-      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
-      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" }
+      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" },
+      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" }
     },
     variants: {
-      edges: variants.map((v: any) => ({ node: v }))
+      edges: variants.map((v: any) => ({ node: v })) // 'variants' here is the transformed array
     },
     featuredImage,
     images: imagesForGallery,
@@ -826,6 +919,157 @@ export async function getProducts({
   }
 }
 
+const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
+  query DescendantProducts(
+    $language: String!
+    $path: String!
+  ) {
+    catalogue(language: $language, path: $path) { # depth removed here
+      __typename
+      path
+      name
+      ... on Product {
+        ${PRODUCT_COMMON_QUERY_FIELDS}
+        productNameFromComponent: component(id: "product-name") {
+          content {
+            ... on SingleLineContent { text }
+          }
+        }
+        productImageFromComponent: component(id: "product-image") {
+          content {
+            ... on ImageContent { images { url altText width height } }
+          }
+        }
+        components {
+          id
+          name
+          type
+          content {
+            ... on ImageContent { images { url altText width height } }
+            ... on NumericContent { number }
+            ... on SingleLineContent { text }
+          }
+        }
+      }
+      children { # Level 1 children (items at Level 2)
+        __typename
+        path
+        name
+        ... on Product {
+          ${PRODUCT_COMMON_QUERY_FIELDS}
+          productNameFromComponent: component(id: "product-name") {
+            content {
+              ... on SingleLineContent { text }
+            }
+          }
+          productImageFromComponent: component(id: "product-image") {
+            content {
+              ... on ImageContent { images { url altText width height } }
+            }
+          }
+          components {
+            id
+            name
+            type
+            content {
+              ... on ImageContent { images { url altText width height } }
+              ... on NumericContent { number }
+              ... on SingleLineContent { text }
+            }
+          }
+        }
+        children { # Level 2 children (items at Level 3)
+          __typename
+          path
+          name
+          ... on Product {
+            ${PRODUCT_COMMON_QUERY_FIELDS}
+            productNameFromComponent: component(id: "product-name") {
+              content {
+                ... on SingleLineContent { text }
+              }
+            }
+            productImageFromComponent: component(id: "product-image") {
+              content {
+                ... on ImageContent { images { url altText width height } }
+              }
+            }
+            components {
+              id
+              name
+              type
+              content {
+                ... on ImageContent { images { url altText width height } }
+                ... on NumericContent { number }
+                ... on SingleLineContent { text }
+              }
+            }
+          }
+          children { # Level 3 children (items at Level 4)
+            __typename
+            path
+            name
+            ... on Product {
+              ${PRODUCT_COMMON_QUERY_FIELDS}
+              productNameFromComponent: component(id: "product-name") {
+                content {
+                  ... on SingleLineContent { text }
+                }
+              }
+              productImageFromComponent: component(id: "product-image") {
+                content {
+                  ... on ImageContent { images { url altText width height } }
+                }
+              }
+              components {
+                id
+                name
+                type
+                content {
+                  ... on ImageContent { images { url altText width height } }
+                  ... on NumericContent { number }
+                  ... on SingleLineContent { text }
+                }
+              }
+            }
+            # No children here to limit depth to 4 actual item levels in this query structure
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function getSubtreeProducts(
+  rootPath: string,
+  language: string = 'en',
+  limit: number = 5,
+  depth: number = 5 // depth parameter is no longer used in the API call
+): Promise<Product[]> {
+  const response = await client.catalogueApi(DESCENDANT_PRODUCTS_QUERY, {
+    language,
+    path: rootPath, // Maps rootPath argument to $path in GQL query
+  });
+
+  const collect = (node: any, bag: any[] = []): any[] => {
+    if (!node) {
+      return bag;
+    }
+    if (node.__typename === 'Product') {
+      bag.push(node);
+    }
+    if (node.children && node.children.length > 0) {
+      node.children.forEach((child: any) => collect(child, bag));
+    }
+    return bag;
+  };
+
+  const allProducts = collect(response?.data?.catalogue);
+  const limitedProducts = allProducts.slice(0, limit);
+
+  return limitedProducts.map(transformCrystallizeProduct).filter(p => p !== null) as Product[];
+}
+
 /**
  * Handles revalidation requests.
  * In a real backend scenario, this might trigger a cache clear or data refresh.
@@ -859,4 +1103,3 @@ export async function getArticle(handle: string): Promise<Article | undefined> {
   const article = dummyArticles.find((a) => a.handle === handle);
   return Promise.resolve(article);
 }
-

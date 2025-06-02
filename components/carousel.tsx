@@ -1,11 +1,11 @@
-import { getCollectionProducts } from 'lib/bff';
+import { getSubtreeProducts } from 'lib/bff';
 import Link from 'next/link';
 import { GridTileImage } from './grid/tile';
 
 export async function Carousel() {
   // Collections that start with `hidden-*` are hidden from the search page.
   const defaultLanguage = 'en';
-  const products = await getCollectionProducts(defaultLanguage, { collection: 'hidden-homepage-carousel' });
+  const products = await getSubtreeProducts('/products', defaultLanguage, 5);
 
   if (!products?.length) return null;
 
