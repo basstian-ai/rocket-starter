@@ -580,10 +580,11 @@ export async function getProduct(handle: string): Promise<Product | undefined> {
 
     const productData = catalogueResponse?.data?.catalogue;
 
-    if (!productData ) { 
+    if (!productData) {
       return undefined;
     }
-    return transformCrystallizeProduct(productData);
+    const product = transformCrystallizeProduct(productData);
+    return product || undefined;
 
   } catch (error) {
     console.error(`Error fetching product (handle: ${handle}) from Crystallize:`, error);
