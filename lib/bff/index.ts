@@ -41,8 +41,6 @@ const PRODUCT_COMMON_QUERY_FIELDS = `
     images {
       url
       altText
-      width
-      height
     }
     attributes { attribute value } # Assuming attributes are needed for options
   }
@@ -378,7 +376,7 @@ export async function getCollection(
                 ... on RichTextContent { json }
               }
             }
-            images(first: 1) { url altText width height }
+            images(first: 1) { url altText }
             meta: metaConnection(first: 5) { edges { node { key value } } }
           }
           # Specific types if you want to query differently based on type
@@ -937,7 +935,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
         }
         productImageFromComponent: component(id: "product-image") {
           content {
-            ... on ImageContent { images { url altText width height } }
+            ... on ImageContent { images { url altText } }
           }
         }
         components {
@@ -945,7 +943,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
           name
           type
           content {
-            ... on ImageContent { images { url altText width height } }
+            ... on ImageContent { images { url altText } }
             ... on NumericContent { number }
             ... on SingleLineContent { text }
           }
@@ -964,7 +962,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
           }
           productImageFromComponent: component(id: "product-image") {
             content {
-              ... on ImageContent { images { url altText width height } }
+              ... on ImageContent { images { url altText } }
             }
           }
           components {
@@ -972,7 +970,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
             name
             type
             content {
-              ... on ImageContent { images { url altText width height } }
+              ... on ImageContent { images { url altText } }
               ... on NumericContent { number }
               ... on SingleLineContent { text }
             }
@@ -991,7 +989,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
             }
             productImageFromComponent: component(id: "product-image") {
               content {
-                ... on ImageContent { images { url altText width height } }
+                ... on ImageContent { images { url altText } }
               }
             }
             components {
@@ -999,7 +997,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
               name
               type
               content {
-                ... on ImageContent { images { url altText width height } }
+                ... on ImageContent { images { url altText } }
                 ... on NumericContent { number }
                 ... on SingleLineContent { text }
               }
@@ -1018,7 +1016,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
               }
               productImageFromComponent: component(id: "product-image") {
                 content {
-                  ... on ImageContent { images { url altText width height } }
+                  ... on ImageContent { images { url altText } }
                 }
               }
               components {
@@ -1026,7 +1024,7 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
                 name
                 type
                 content {
-                  ... on ImageContent { images { url altText width height } }
+                  ... on ImageContent { images { url altText } }
                   ... on NumericContent { number }
                   ... on SingleLineContent { text }
                 }
