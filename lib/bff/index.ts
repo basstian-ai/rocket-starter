@@ -51,7 +51,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     } else if (firstPriceVariant?.price) {
       amount = firstPriceVariant.price.toString();
     }
-    
+
     // Since stock is not in BASIC_PRODUCT_FIELDS, set availableForSale based on price or just true
     const availableForSale = parseFloat(amount) > 0; // Or simply true
 
@@ -68,7 +68,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   let minPrice = Infinity;
   let maxPrice = 0;
   // currencyCode is static as it's not available in BASIC_PRODUCT_FIELDS priceVariants
-  const rangeCurrencyCode = "USD"; 
+  const rangeCurrencyCode = "USD";
 
   transformedVariants.forEach((v: ProductVariant) => { // Explicitly type v
     const price = parseFloat(v.price.amount);
@@ -99,7 +99,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
 
   // 6. Description & DescriptionHTML
   // Simplified as BASIC_PRODUCT_FIELDS does not contain component data for rich descriptions
-  const description = `View details for ${productTitle}.`; 
+  const description = `View details for ${productTitle}.`;
   const descriptionHtml = `<p>${description}</p>`;
 
   // 7. Options
@@ -113,7 +113,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   // 9. Tags
   // topics are not in BASIC_PRODUCT_FIELDS
   const tags: string[] = [];
-  
+
   return {
     id: node.id, // From BASIC_PRODUCT_FIELDS
     handle: node.path, // From BASIC_PRODUCT_FIELDS
