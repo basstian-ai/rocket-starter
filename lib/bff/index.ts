@@ -24,29 +24,34 @@ const PRODUCT_COMMON_QUERY_FIELDS = `
   id
   name
   path
-  # slug # The schema uses 'path' for full paths, handle/slug is derived in transformer.
-  # seo Title/Description are not standard, likely component-based or from a 'meta' field not yet adapted.
-  # vatType # Not available in starter-kit Product type per schema.
+  topics { name } # Product-level topics/tags
 
   variants {
-    id
-    sku
-    name
-    isDefault
-    price # Direct price from variant
-    priceVariants { # Price per price list/currency
-      identifier
-      price
-      currency
+    id          # Standard unique ID for the variant
+    name        # A general name for the variant (e.g., "Red, Large")
+    isDefault   # Boolean to identify the default variant
+    stock       # Numeric stock count (assuming API maps this from stockLocation or a stock component)
+
+    # Specific Crystallize components attached to this variant
+    skuComponent: component(id: "sku") {
+      content { # Added content access
+        ... on SingleLineContent { text }
+      }
     }
-    stock # Stock count
-    # attributes { attribute value } # Standard in Crystallize, should be safe to add if needed by PDP variant selection
-    images { # Images for this specific variant
-      url
-      altText
+    priceComponent: component(id: "list-price") { # Expects numeric content
+      content { # Added content access
+        ... on NumericContent { number }
+      }
     }
+    imageComponent: component(id: "variant-image") { # Expects images content
+      content { # Added content access
+        ... on ImageContent { images { url altText width height } }
+      }
+    }
+    # Note: We are removing direct 'price', 'priceVariants', and 'images' fields from variants,
+    # and will rely on the 'priceComponent' and 'imageComponent' above.
+    # The transformer will need to be updated to use these.
   }
-  topics { name } # Used for tags
 `;
 
 // TODO: THIS TRANSFORMER IS INTENTIONALLY MINIMAL AND USES MANY FALLBACKS
@@ -59,60 +64,65 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     return null; 
   }
 
-  const variants = node.variants?.map((variant: any) => {
-    // Attempt to get price from 'price' field or first 'priceVariants'
-    let amount = variant.price?.toString() || "0";
-    let currencyCode = "USD"; // Default currency
+  const productTitle = node.productNameFromComponent?.content?.text || node.name || 'Untitled Product';
 
-    if (variant.priceVariants && variant.priceVariants.length > 0) {
-      const defaultPriceVariant = variant.priceVariants.find((pv: any) => pv.identifier === 'default') || variant.priceVariants[0];
-      if (defaultPriceVariant) {
-        amount = defaultPriceVariant.price?.toString() || amount;
-        currencyCode = defaultPriceVariant.currency || currencyCode;
-      }
-    }
+  const variants = node.variants?.map((variant: any) => {
+    const variantTitle = variant.name || productTitle; // Variant name or fallback to product name
+
+    // attributes are not part of PRODUCT_COMMON_QUERY_FIELDS anymore,
+    // if needed for options, they must be queried directly or via components on variant.
+    // For now, selectedOptions will be empty.
+    const selectedOptions: { name: string; value: string }[] = [];
+    // variant.attributes?.map((attr: any) => ({ name: attr.attribute, value: attr.value })) || [];
+
 
     return {
-      id: variant.sku || variant.id,
-      title: variant.name || node.name,
-      availableForSale: (variant.stock || 0) > 0,
-      selectedOptions: variant.attributes?.map((attr: any) => ({ // Assuming attributes exist
-        name: attr.attribute,
-        value: attr.value
-      })) || [],
-      price: { amount, currencyCode }
+      id: variant.skuComponent?.content?.text || variant.id,
+      title: variantTitle,
+      availableForSale: (variant.stock || 0) > 0, // Assuming stock is a direct number
+      selectedOptions,
+      price: {
+        amount: variant.priceComponent?.content?.number?.toString() || "0",
+        currencyCode: "EUR" // Defaulting to EUR as per re-evaluation
+      }
     };
   }) || [];
 
   let minPrice = Infinity;
   let maxPrice = 0;
-  variants.forEach((v: any) => {
+  variants.forEach((v: any) => { // v here is already transformed variant
     const price = parseFloat(v.price.amount);
     if (!isNaN(price)) {
       if (price < minPrice) minPrice = price;
       if (price > maxPrice) maxPrice = price;
     }
   });
-   if (minPrice === Infinity) minPrice = 0; // Ensure minPrice is not Infinity if no variants or prices
-
-  const title = node.productNameFromComponent?.text || node.name || 'Untitled Product';
+  if (minPrice === Infinity) minPrice = 0;
 
   // featuredImage logic
   let featuredImageSource: any = null;
 
-  // 1. Try from variants
-  const firstVariantWithImage = node.variants?.find((v: any) => v.images && v.images.length > 0);
-  if (firstVariantWithImage) {
-    featuredImageSource = firstVariantWithImage.images[0];
+  // 1. Try from default variant's imageComponent
+  const defaultVariant = node.variants?.find((v: any) => v.isDefault);
+  if (defaultVariant?.imageComponent?.content?.images?.length > 0) {
+    featuredImageSource = defaultVariant.imageComponent.content.images[0];
   }
 
-  // 2. If not from variants, try from specific productImageFromComponent
-  if (!featuredImageSource && node.productImageFromComponent?.images?.length > 0) {
-    featuredImageSource = node.productImageFromComponent.images[0];
+  // 2. If not, try from product-level productImageFromComponent
+  if (!featuredImageSource && node.productImageFromComponent?.content?.images?.length > 0) {
+    featuredImageSource = node.productImageFromComponent.content.images[0];
   }
 
-  // 3. If still not found, try from generic components
-  if (!featuredImageSource && node.components) { // Added node.components check here
+  // 3. If still not found, try from the first variant that has an imageComponent
+  if (!featuredImageSource) {
+    const firstVariantWithSpecificImageComp = node.variants?.find((v: any) => v.imageComponent?.content?.images?.length > 0);
+    if (firstVariantWithSpecificImageComp) {
+      featuredImageSource = firstVariantWithSpecificImageComp.imageComponent.content.images[0];
+    }
+  }
+
+  // 4. If still not found, try from generic product components (e.g., component named "Images" or "Featured Image")
+  if (!featuredImageSource && node.components) {
     const imageComponent = node.components?.find(
       (c: any) => (c.name === 'Images' || c.name === 'Image' || c.name === 'Featured Image' || c.type === 'images') &&
                    c.content?.images && c.content.images.length > 0
@@ -126,21 +136,50 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   if (featuredImageSource) {
     featuredImage = {
       url: featuredImageSource.url,
-      altText: featuredImageSource.altText || title || 'Product image', // Use derived title
+      altText: featuredImageSource.altText || productTitle || 'Product image',
       width: featuredImageSource.width || 0,
       height: featuredImageSource.height || 0
     };
   }
-  // Ensure placeholder if URL is still missing after all checks
-  if (!featuredImage.url) {
+  if (!featuredImage.url) { // Final check for placeholder
       featuredImage = { url: '', altText: 'Placeholder', width: 0, height: 0 };
   }
 
-  // Fallback for images (gallery): use all images from all variants.
-  let allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name || 'Product image' } })) || []) || [];
-  let imagesForGallery = { edges: allVariantImages };
+  // Gallery images logic
+  let collectedGalleryImages: any[] = [];
+  node.variants?.forEach((v: any) => {
+    if (v.imageComponent?.content?.images) {
+      collectedGalleryImages.push(...v.imageComponent.content.images);
+    }
+  });
+  if (node.productImageFromComponent?.content?.images) {
+     // Avoid adding the same featured image again if it's already from productImageFromComponent
+     if (!featuredImageSource || node.productImageFromComponent.content.images[0]?.url !== featuredImageSource.url) {
+        collectedGalleryImages.push(...node.productImageFromComponent.content.images);
+     } else if (node.productImageFromComponent.content.images.length > 1) {
+        collectedGalleryImages.push(...node.productImageFromComponent.content.images.slice(1));
+     }
+  }
 
-  // If no gallery images from variants, try from product components
+  const uniqueImageUrls = new Set();
+  const uniqueGalleryImages = collectedGalleryImages.filter(img => {
+    if (!img.url || uniqueImageUrls.has(img.url)) return false;
+    uniqueImageUrls.add(img.url);
+    return true;
+  });
+
+  let imagesForGallery = {
+    edges: uniqueGalleryImages.map((img: any) => ({
+      node: {
+        url: img.url,
+        altText: img.altText || productTitle || 'Product image',
+        width: img.width || 0,
+        height: img.height || 0
+      }
+    }))
+  };
+
+  // Fallback to generic component search for gallery if still empty
   if (imagesForGallery.edges.length === 0 && node.components) {
     const galleryComponent = node.components?.find(
       (c: any) => (c.name === 'Gallery' || c.type === 'images') &&
@@ -148,47 +187,47 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     );
     if (galleryComponent) {
       imagesForGallery.edges = galleryComponent.content.images.map((img: any) => ({
-        node: { url: img.url, altText: img.altText || node.name || 'Product image' }
+        node: { url: img.url, altText: img.altText || productTitle || 'Product image', width: img.width || 0, height: img.height || 0 }
       }));
     }
   }
-  
-  const description = title || 'Product description placeholder.'; // Use derived title for description too if node.name was missing
+
+  const description = productTitle || 'Product description placeholder.';
   const descriptionHtml = `<p>${description}</p>`;
 
-  const productOptions: ProductOption[] = []; // Placeholder, as attributes not fully queried/processed for options
-  if (node.variants && node.variants.length > 0) {
-    const tempOptionsMap = new Map<string, Set<string>>();
-    node.variants.forEach((variant:any) => {
-      variant.attributes?.forEach((attr: any) => {
-        if (!tempOptionsMap.has(attr.attribute)) {
-          tempOptionsMap.set(attr.attribute, new Set());
-        }
-        tempOptionsMap.get(attr.attribute)!.add(attr.value);
-      });
-    });
-    tempOptionsMap.forEach((values, name) => {
-      productOptions.push({ id: name, name, values: Array.from(values) });
-    });
-  }
+  // Product Options: Since 'attributes' are not directly queried on variants anymore,
+  // this part needs to be re-evaluated if options are still needed.
+  // For now, productOptions will be empty.
+  const productOptions: ProductOption[] = [];
+  // if (node.variants && node.variants.length > 0) {
+  //   const tempOptionsMap = new Map<string, Set<string>>();
+  //   node.variants.forEach((variant:any) => { // variant here is raw variant from API
+  //     variant.attributes?.forEach((attr: any) => { // attributes would need to be queried
+  //       if (!tempOptionsMap.has(attr.attribute)) {
+  //         tempOptionsMap.set(attr.attribute, new Set());
+  //       }
+  //       tempOptionsMap.get(attr.attribute)!.add(attr.value);
+  //     });
+  //   });
+  //   tempOptionsMap.forEach((values, name) => {
+  //     productOptions.push({ id: name, name, values: Array.from(values) });
+  //   });
+  // }
 
-  const seoTitle = title || 'Product'; // Use derived title
+  const seoTitle = productTitle || 'Product';
   const seoDescription = description;
 
   return {
-    id: node.id,
+    id: node.id, // Product ID
     handle: node.path,
-    availableForSale: variants.some((v: any) => v.availableForSale),
-    title, // Use derived title
+    availableForSale: variants.some((v: any) => v.availableForSale), // Check transformed variants
+    title: productTitle, // Use derived product title
     description,
     descriptionHtml,
-    options: productOptions, // Simplified based on available variant attributes
+    options: productOptions,
     priceRange: {
-      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" },
-      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "USD" }
-    },
-    variants: {
-      edges: variants.map((v: any) => ({ node: v }))
+      minVariantPrice: { amount: minPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" },
+      maxVariantPrice: { amount: maxPrice.toString(), currencyCode: variants[0]?.price.currencyCode || "EUR" }
     },
     featuredImage,
     images: imagesForGallery,
