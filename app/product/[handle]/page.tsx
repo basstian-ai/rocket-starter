@@ -73,37 +73,55 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
   };
 
   return (
-    <ProductProvider>
+    // <ProductProvider>
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd)
+          __html: JSON.stringify(productJsonLd) // Assuming productJsonLd is still defined
         }}
       />
-      <div className="mx-auto max-w-(--breakpoint-2xl) px-4">
-        <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-8 md:p-12 lg:flex-row lg:gap-8 dark:border-neutral-800 dark:bg-black">
-          <div className="h-full w-full basis-full lg:basis-4/6">
-            <Suspense
-              fallback={
-                <div className="relative aspect-square h-full max-h-[550px] w-full overflow-hidden" />
-              }
-            >
-              <Gallery
-                images={product.images.edges.map(edge => ({ src: edge.node.url, altText: edge.node.altText })).slice(0, 5)}
-              />
-            </Suspense>
+      <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+        <h1>{product.title}</h1>
+        {product.featuredImage?.url && product.featuredImage.url !== '/placeholder.svg' ? (
+          <img 
+            src={product.featuredImage.url} 
+            alt={product.featuredImage.altText || product.title} 
+            style={{ maxWidth: '300px', maxHeight: '300px', height: 'auto', border: '1px solid #ccc' }} 
+          />
+        ) : (
+          <div style={{ width: '300px', height: '300px', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0' }}>
+            No Image Available
           </div>
-
-          <div className="basis-full lg:basis-2/6">
-            <Suspense fallback={null}>
-              <ProductDescription product={product} />
-            </Suspense>
-          </div>
+        )}
+        <div style={{ marginTop: '20px', fontSize: '1.2em' }}>
+          <p>
+            Price: {product.priceRange?.minVariantPrice?.amount}{' '}
+            {product.priceRange?.minVariantPrice?.currencyCode}
+          </p>
         </div>
-        <RelatedProducts id={product.id} />
+        
+        {/* --- Original structure commented out for debugging ---
+        <div className="mx-auto max-w-(--breakpoint-2xl) px-4">
+          <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-8 md:p-12 lg:flex-row lg:gap-8 dark:border-neutral-800 dark:bg-black">
+            <div className="h-full w-full basis-full lg:basis-4/6">
+              <Suspense fallback={<div className="relative aspect-square h-full max-h-[550px] w-full overflow-hidden" />}>
+                <Gallery images={product.images.edges.map(edge => ({ src: edge.node.url, altText: edge.node.altText })).slice(0, 5)} />
+              </Suspense>
+            </div>
+            <div className="basis-full lg:basis-2/6">
+              <Suspense fallback={null}>
+                <ProductDescription product={product} />
+              </Suspense>
+            </div>
+          </div>
+          <RelatedProducts id={product.id} />
+        </div>
+        */}
       </div>
       <Footer />
-    </ProductProvider>
+    </>
+    // </ProductProvider>
   );
 }
 

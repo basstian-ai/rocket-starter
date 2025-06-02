@@ -33,73 +33,61 @@ const transformCrystallizeProduct = (node: any): Product | null => {
 
   const productName = node.name || 'Untitled Product';
 
-  // Description: Attempt to find from components if they exist and have simple text content.
-  // This is speculative as SIMPLE_PRODUCT_FIELDS doesn't specify component content structure
-  // to avoid build errors. We rely on the user's example that components with text/json content are returned.
-  let description = '';
-  let descriptionHtml = '';
-  
+  let description = ''; 
+  let descriptionHtml = ''; 
 
+  const variants = node.variants?.map((variantData: any) => {
+    const priceVariantEntry = variantData.priceVariants?.find((pv: any) => pv.identifier === 'default') || variantData.priceVariants?.[0];
+    const stockLocationEntry = variantData.stockLocations?.find((sl:any) => sl.identifier === 'default') || variantData.stockLocations?.[0];
+    const stockCount = stockLocationEntry?.stock ?? variantData.stock ?? 0;
 
-  // Variants
-  const variants = node.variants?.map((variant: any) => {
-    const priceVariantEntry = variant.priceVariants?.find((pv: any) => pv.identifier === 'default') || variant.priceVariants?.[0];
-    // stock can be on stockLocations (per user example) or directly on variant (variant.stock)
-    const stockLocationEntry = variant.stockLocations?.find((sl:any) => sl.identifier === 'default') || variant.stockLocations?.[0];
-    const stockCount = stockLocationEntry?.stock ?? variant.stock ?? 0;
-
-    const variantImages = variant.images?.map((img: any) => ({
+    const variantImages = variantData.images?.map((img: any) => ({
       src: img.url,
-      altText: img.altText || variant.name || productName,
+      altText: img.altText || variantData.name || productName,
       width: img.width || 0, 
       height: img.height || 0 
     })) || [];
 
-    return {
-      id: variant.sku || variant.id,
-      title: variant.name || productName,
+    return { // This is the structure of objects within the 'variants' array
+      id: variantData.sku || variantData.id,
+      title: variantData.name || productName,
       availableForSale: stockCount > 0,
-      selectedOptions: variant.attributes?.map((attr: any) => ({
+      selectedOptions: variantData.attributes?.map((attr: any) => ({
         name: attr.attribute,
         value: attr.value
       })) || [],
       price: {
         amount: priceVariantEntry?.price?.toString() || "0",
-        currencyCode: priceVariantEntry?.currency || "USD" // Default if not provided
+        currencyCode: priceVariantEntry?.currency || "EUR" // Set to EUR as per user feedback
       },
-      images: variantImages // Images for this specific variant
+      images: variantImages 
     };
   }) || [];
 
   // Price Range
-  let minVariantPrice = Infinity;
-  let maxVariantPrice = 0;
-  let currencyCode = "USD"; // Default
+  let minVariantPrice = 0; // Default to 0
+  let maxVariantPrice = 0; // Default to 0
+  let currencyCode = "EUR"; // Default to EUR as per user feedback
+
   if (variants.length > 0) {
-    currencyCode = variants[0].price.currencyCode; // Assume all variants share currency
-    variants.forEach((v: ProductVariant) => { // v is ProductVariant here
-      const price = parseFloat(v.price.amount);
-      if (!isNaN(price)) {
-        if (price < minVariantPrice) minVariantPrice = price;
-        if (price > maxVariantPrice) maxVariantPrice = price;
-      }
-    });
+    const defaultVariantForPrice = variants.find((v: ProductVariant) => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku) || variants[0];
+    if (defaultVariantForPrice) {
+        minVariantPrice = parseFloat(defaultVariantForPrice.price.amount) || 0;
+        maxVariantPrice = minVariantPrice; // For basic display, min and max can be the same
+        currencyCode = defaultVariantForPrice.price.currencyCode || "EUR";
+    }
   }
-  if (minVariantPrice === Infinity) minVariantPrice = 0;
-  // if (maxVariantPrice === 0 && variants.length > 0 && minVariantPrice > 0) maxVariantPrice = minVariantPrice; // if only one price
-  if (maxVariantPrice === 0 && minVariantPrice > 0) maxVariantPrice = minVariantPrice;
-
-
+  
   // Featured Image - prioritize default variant's first image, then first variant's first image
   let featuredImage: Image = { url: '/placeholder.svg', altText: productName, width: 100, height: 100 };
-  const defaultVariant = variants.find((v: ProductVariant) => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku);
+  const defaultVariantForImage = variants.find((v: ProductVariant) => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku);
   
-  if (defaultVariant?.images && defaultVariant.images.length > 0) {
+  if (defaultVariantForImage?.images && defaultVariantForImage.images.length > 0) {
     featuredImage = { 
-        url: defaultVariant.images[0].src, 
-        altText: defaultVariant.images[0].altText || productName,
-        width: defaultVariant.images[0].width || 0,
-        height: defaultVariant.images[0].height || 0
+        url: defaultVariantForImage.images[0].src, 
+        altText: defaultVariantForImage.images[0].altText || productName,
+        width: defaultVariantForImage.images[0].width || 0,
+        height: defaultVariantForImage.images[0].height || 0
     };
   } else if (variants.length > 0 && variants[0].images && variants[0].images.length > 0) {
     featuredImage = {
@@ -109,80 +97,40 @@ const transformCrystallizeProduct = (node: any): Product | null => {
         height: variants[0].images[0].height || 0
     };
   }
-  // Removed direct access to node.images as it was removed from SIMPLE_PRODUCT_FIELDS
 
-  // Gallery Images: Collect from all variant images
-  const galleryImagesSet = new Set<string>();
-  let allImagesForGallery: any[] = [];
+  // Simplified gallery: just the featured image if available
+  const galleryImagesEdges = featuredImage.url !== '/placeholder.svg' ? [{ node: featuredImage }] : [];
 
-  const addImageToGalleryIfUnique = (imgNode: any, variantTitle?: string) => {
-    if (imgNode?.src && !galleryImagesSet.has(imgNode.src)) {
-      galleryImagesSet.add(imgNode.src);
-      allImagesForGallery.push({
-        node: {
-          src: imgNode.src,
-          altText: imgNode.altText || productName + (variantTitle ? ` - ${variantTitle}` : ''),
-          width: imgNode.width || 0,
-          height: imgNode.height || 0
-        }
-      });
-    }
-  };
-
-  if (featuredImage.url !== '/placeholder.svg') {
-      addImageToGalleryIfUnique(featuredImage);
-  }
-
-  variants.forEach((variant: ProductVariant) => {
-    variant.images?.forEach((img: Image) => addImageToGalleryIfUnique(img, variant.title));
-  });
-  // Removed node.images and component image iteration due to simplification
-
-  // Options from variant attributes
-  const optionsMap = new Map<string, Set<string>>();
-  variants.forEach((variant: ProductVariant) => { // v is ProductVariant
-    variant.selectedOptions.forEach((opt: { name: string; value: string }) => {
-      if (opt.name && opt.value) {
-        if (!optionsMap.has(opt.name)) {
-          optionsMap.set(opt.name, new Set());
-        }
-        optionsMap.get(opt.name)!.add(opt.value);
-      }
-    });
-  });
-  const productOptions: ProductOption[] = Array.from(optionsMap.entries()).map(([name, valuesSet], index) => ({
-    id: `${node.id}-opt-${index}`,
-    name,
-    values: Array.from(valuesSet)
-  }));
+  // Options - default to empty
+  const productOptions: ProductOption[] = [];
   
-  // SEO and Tags are now minimal as they were removed from SIMPLE_PRODUCT_FIELDS
-  const seoTitle = productName; // Default SEO title
-  const seoDescription = productName; // Fallback to product name if description is empty
-  const tags: string[] = []; // No topics data in SIMPLE_PRODUCT_FIELDS
+  // SEO and Tags - default to basic/empty
+  const seoTitle = productName;
+  const seoDescription = productName; 
+  const tags: string[] = [];
 
   const transformedProduct: Product = {
     id: node.id,
     handle: node.path,
-    availableForSale: variants.some((v: ProductVariant) => v.availableForSale),
+    availableForSale: variants.some((v: ProductVariant) => v.availableForSale), // This is fine
     title: productName,
-    description,
-    descriptionHtml,
-    options: productOptions,
+    description, // empty
+    descriptionHtml, // empty
+    options: productOptions, // empty
     priceRange: {
       minVariantPrice: { amount: minVariantPrice.toString(), currencyCode },
       maxVariantPrice: { amount: maxVariantPrice.toString(), currencyCode }
     },
     variants: { 
-        edges: variants.map((v: ProductVariant) => ({node: v}))
+        edges: variants.map((v: ProductVariant) => ({node: v})) // This is fine
     },
     featuredImage,
-    images: { 
-        edges: allImagesForGallery 
+    images: { // Simplified gallery
+        edges: galleryImagesEdges 
     },
-    seo: { title: seoTitle, description: seoDescription },
-    tags,
-    updatedAt: node.updatedAt || new Date().toISOString(), // node.updatedAt may not be in SIMPLE_PRODUCT_FIELDS
+    seo: { title: seoTitle, description: seoDescription }, // Basic
+    tags, // empty
+    updatedAt: node.updatedAt || new Date().toISOString(),
   };
   return transformedProduct;
 };
