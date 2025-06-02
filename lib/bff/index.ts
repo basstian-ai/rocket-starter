@@ -342,7 +342,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
       maxVariantPrice: { amount: maxPrice.toString(), currencyCode: rangeCurrencyCode }
     },
     variants: {
-      edges: transformedVariants.map(v => ({ node: v }))
+      edges: transformedVariants.map((v: ProductVariant) => ({ node: v }))
     },
     featuredImage,
     images: imagesForGallery,
