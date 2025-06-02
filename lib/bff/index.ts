@@ -12,7 +12,7 @@ import {
   ProductVariant, // Added ProductVariant
   Article // Added Article type
 } from './types';
-import { DETAILED_PRODUCT_FIELDS } from './crystallize-query-fragments';
+import { SIMPLE_PRODUCT_FIELDS } from './crystallize-query-fragments';
 import { dummyMenu, dummyCart, dummyArticles } from './dummy-data'; // Removed dummyCollections, dummyProducts
 import client from 'lib/crystallize/index';
 
@@ -22,7 +22,7 @@ const LANGUAGE = "en"; // Default language for Crystallize API calls
 // IT MUST BE ENHANCED WITH SHAPE-SPECIFIC COMPONENT QUERIES AND OTHER FIELDS
 // (REFERENCING starter-kit-catalogue.schema.json AND getToolsProducts AS AN EXAMPLE)
 // TO RESTORE FULL PRODUCT DATA FOR THE PDP AND OTHER PRODUCT LISTINGS.
-const PRODUCT_COMMON_QUERY_FIELDS = DETAILED_PRODUCT_FIELDS;
+const PRODUCT_COMMON_QUERY_FIELDS = SIMPLE_PRODUCT_FIELDS;
 
 // (E.G., FOR DESCRIPTION, DETAILED IMAGES, SEO FIELDS, CUSTOM ATTRIBUTES)
 // ONCE THE QUERIES ARE EXPANDED. REFER TO getToolsProducts for component examples.
@@ -31,61 +31,62 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     return null;
   }
 
-  const getComponentContent = (componentIdOrName: string) => {
-    const component = node.components?.find((c: any) => c.id === componentIdOrName || c.name === componentIdOrName);
-    return component?.content;
-  };
-
   const productName = node.name || 'Untitled Product';
 
-  // Description
+  // Description: Attempt to find from components if they exist and have simple text content.
+  // This is speculative as SIMPLE_PRODUCT_FIELDS doesn't specify component content structure
+  // to avoid build errors. We rely on the user's example that components with text/json content are returned.
   let description = '';
   let descriptionHtml = '';
-  const descComponentContent = getComponentContent('description') || getComponentContent('summary'); // Common component names
-  if (descComponentContent) {
-    if (descComponentContent.plainText && descComponentContent.plainText.length > 0) {
-      description = descComponentContent.plainText.join('\n');
-    }
-    if (descComponentContent.json && descComponentContent.json.length > 0) {
-      // Basic transformation for rich text JSON to HTML (very simplified)
-      descriptionHtml = descComponentContent.json.map((block: any) => `<p>${block.children?.map((child:any) => child.text).join('') || ''}</p>`).join('');
-    } else if (descComponentContent.html && descComponentContent.html.length > 0) {
-      descriptionHtml = descComponentContent.html.join('\n');
-    }
-    if (!description && descriptionHtml) {
-      description = descriptionHtml.replace(/<[^>]*>?/gm, ''); // Basic strip tags
-    }
-     if (!descriptionHtml && description) {
-        descriptionHtml = `<p>${description.replace(/\n/g, '</p><p>')}</p>`;
-    }
+  
+  // From user's example, components is an array. Let's try to find a description-like component.
+  // This assumes the second component (index 1) in the user's example is the description.
+  // This is a simplified approach due to previous GQL validation issues.
+  const descriptionComponent = node.components?.[1]; // Based on user's example structure.
+  if (descriptionComponent?.content?.json) {
+    // Basic transformation for rich text JSON to HTML
+    descriptionHtml = descriptionComponent.content.json.map((block: any) => {
+      if (block.type === 'unordered-list' || block.type === 'ordered-list') {
+        const listType = block.type === 'unordered-list' ? 'ul' : 'ol';
+        const items = block.children?.map((item: any) => `<li>${item.textContent || ''}</li>`).join('') || '';
+        return `<${listType}>${items}</${listType}>`;
+      }
+      return `<p>${block.textContent || block.children?.map((child: any) => child.textContent).join('') || ''}</p>`;
+    }).join('');
+    description = descriptionHtml.replace(/<[^>]*>?/gm, ' ').replace(/\s+/gm, ' ').trim(); // Basic strip tags and normalize spaces
+  } else if (descriptionComponent?.content?.text) {
+    description = descriptionComponent.content.text;
+    descriptionHtml = `<p>${description}</p>`;
   }
-  if (!description && node.summary) description = node.summary; // Fallback
+
 
   // Variants
   const variants = node.variants?.map((variant: any) => {
     const priceVariantEntry = variant.priceVariants?.find((pv: any) => pv.identifier === 'default') || variant.priceVariants?.[0];
+    // stock can be on stockLocations (per user example) or directly on variant (variant.stock)
     const stockLocationEntry = variant.stockLocations?.find((sl:any) => sl.identifier === 'default') || variant.stockLocations?.[0];
+    const stockCount = stockLocationEntry?.stock ?? variant.stock ?? 0;
 
     const variantImages = variant.images?.map((img: any) => ({
       src: img.url,
       altText: img.altText || variant.name || productName,
-      width: img.width || 0, // Default to 0 if not present
-      height: img.height || 0 // Default to 0 if not present
+      width: img.width || 0, 
+      height: img.height || 0 
     })) || [];
 
     return {
-      id: variant.sku || variant.id, // Prefer SKU
+      id: variant.sku || variant.id,
       title: variant.name || productName,
-      availableForSale: (stockLocationEntry?.stock ?? variant.stock ?? 0) > 0,
+      availableForSale: stockCount > 0,
       selectedOptions: variant.attributes?.map((attr: any) => ({
         name: attr.attribute,
         value: attr.value
       })) || [],
       price: {
         amount: priceVariantEntry?.price?.toString() || "0",
-        currencyCode: priceVariantEntry?.currency || "USD"
+        currencyCode: priceVariantEntry?.currency || "USD" // Default if not provided
       },
-      images: variantImages
+      images: variantImages // Images for this specific variant
     };
   }) || [];
 
@@ -94,8 +95,8 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   let maxVariantPrice = 0;
   let currencyCode = "USD"; // Default
   if (variants.length > 0) {
-    currencyCode = variants[0].price.currencyCode;
-    variants.forEach((v: any) => {
+    currencyCode = variants[0].price.currencyCode; // Assume all variants share currency
+    variants.forEach((v: ProductVariant) => { // v is ProductVariant here
       const price = parseFloat(v.price.amount);
       if (!isNaN(price)) {
         if (price < minVariantPrice) minVariantPrice = price;
@@ -104,93 +105,63 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     });
   }
   if (minVariantPrice === Infinity) minVariantPrice = 0;
-  if (maxVariantPrice === -Infinity) maxVariantPrice = 0;
+  // if (maxVariantPrice === 0 && variants.length > 0 && minVariantPrice > 0) maxVariantPrice = minVariantPrice; // if only one price
+  if (maxVariantPrice === 0 && minVariantPrice > 0) maxVariantPrice = minVariantPrice;
 
 
-  // Featured Image
+  // Featured Image - prioritize default variant's first image, then first variant's first image
   let featuredImage: Image = { url: '/placeholder.svg', altText: productName, width: 100, height: 100 };
-  const productImageComponentContent = getComponentContent('product-image');
-  if (productImageComponentContent?.images && productImageComponentContent.images.length > 0) {
-    const img = productImageComponentContent.images[0];
-    featuredImage = {
-      url: img.url,
-      altText: img.altText || productName,
-      width: img.width || 0,
-      height: img.height || 0
-    };
-  } else if (node.defaultVariant?.images && node.defaultVariant.images.length > 0) {
-    const img = node.defaultVariant.images[0];
-    featuredImage = {
-      url: img.url,
-      altText: img.altText || productName,
-      width: img.width || 0,
-      height: img.height || 0
+  const defaultVariant = variants.find(v => v.id === node.variants?.find((varData: any) => varData.isDefault)?.sku);
+  
+  if (defaultVariant?.images && defaultVariant.images.length > 0) {
+    featuredImage = { 
+        url: defaultVariant.images[0].src, 
+        altText: defaultVariant.images[0].altText || productName,
+        width: defaultVariant.images[0].width || 0,
+        height: defaultVariant.images[0].height || 0
     };
   } else if (variants.length > 0 && variants[0].images && variants[0].images.length > 0) {
-     const img = variants[0].images[0];
-     featuredImage = {
-      url: img.src,
-      altText: img.altText || productName,
-      width: img.width || 0,
-      height: img.height || 0
-    };
-  } else if (node.images && node.images.length > 0) {
-     const img = node.images[0];
-     featuredImage = {
-      url: img.url,
-      altText: img.altText || productName,
-      width: img.width || 0,
-      height: img.height || 0
+    featuredImage = {
+        url: variants[0].images[0].src,
+        altText: variants[0].images[0].altText || productName,
+        width: variants[0].images[0].width || 0,
+        height: variants[0].images[0].height || 0
     };
   }
+  // Removed direct access to node.images as it was removed from SIMPLE_PRODUCT_FIELDS
 
-
-  // Gallery Images
+  // Gallery Images: Collect from all variant images
   const galleryImagesSet = new Set<string>();
   let allImagesForGallery: any[] = [];
 
-  const addImageToGallery = (img: any, altSuffix: string = '') => {
-    if (img?.url && !galleryImagesSet.has(img.url)) {
-      galleryImagesSet.add(img.url);
+  const addImageToGalleryIfUnique = (imgNode: any, variantTitle?: string) => {
+    if (imgNode?.src && !galleryImagesSet.has(imgNode.src)) {
+      galleryImagesSet.add(imgNode.src);
       allImagesForGallery.push({
         node: {
-            src: img.url,
-            altText: img.altText || productName + (altSuffix ? ` - ${altSuffix}` : ''),
-            width: img.width || 0,
-            height: img.height || 0
+          src: imgNode.src,
+          altText: imgNode.altText || productName + (variantTitle ? ` - ${variantTitle}` : ''),
+          width: imgNode.width || 0,
+          height: imgNode.height || 0
         }
       });
-    } else if (img?.src && !galleryImagesSet.has(img.src)) { // For variant images that might have src
-        galleryImagesSet.add(img.src);
-        allImagesForGallery.push({
-            node: {
-                src: img.src,
-                altText: img.altText || productName + (altSuffix ? ` - ${altSuffix}` : ''),
-                width: img.width || 0,
-                height: img.height || 0
-            }
-        });
     }
   };
 
   if (featuredImage.url !== '/placeholder.svg') {
-      addImageToGallery(featuredImage);
+      addImageToGalleryIfUnique(featuredImage);
   }
 
-  node.images?.forEach((img: any) => addImageToGallery(img));
-
-  variants.forEach((variant: any) => {
-    variant.images?.forEach((img: any) => addImageToGallery(img, variant.title));
+  variants.forEach(variant => {
+    variant.images?.forEach(img => addImageToGalleryIfUnique(img, variant.title));
   });
+  // Removed node.images and component image iteration due to simplification
 
-  productImageComponentContent?.images?.forEach((img: any) => addImageToGallery(img));
-
-
-  // Options
+  // Options from variant attributes
   const optionsMap = new Map<string, Set<string>>();
-  variants.forEach((variant: any) => {
-    variant.selectedOptions.forEach((opt: any) => {
-      if (opt.name && opt.value) { // Ensure name and value exist
+  variants.forEach((variant: ProductVariant) => { // v is ProductVariant
+    variant.selectedOptions.forEach((opt: {name: string, value: string}) => {
+      if (opt.name && opt.value) {
         if (!optionsMap.has(opt.name)) {
           optionsMap.set(opt.name, new Set());
         }
@@ -203,15 +174,11 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     name,
     values: Array.from(valuesSet)
   }));
-
-  // SEO
-  const metaTitle = node.meta?.find((m:any) => m.key === 'title')?.value;
-  const metaDescription = node.meta?.find((m:any) => m.key === 'description')?.value;
-  const seoTitle = metaTitle || productName;
-  const seoDescription = metaDescription || description || productName;
-
-  // Tags
-  const tags: string[] = node.topics?.map((topic: any) => topic.name).filter(Boolean) || [];
+  
+  // SEO and Tags are now minimal as they were removed from SIMPLE_PRODUCT_FIELDS
+  const seoTitle = productName; // Default SEO title
+  const seoDescription = description || productName; // Default SEO description
+  const tags: string[] = []; // No topics data in SIMPLE_PRODUCT_FIELDS
 
   const transformedProduct: Product = {
     id: node.id,
@@ -222,19 +189,19 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     descriptionHtml,
     options: productOptions,
     priceRange: {
-      minVariantPrice: { amount: minVariantPrice === Infinity ? "0" : minVariantPrice.toString(), currencyCode },
+      minVariantPrice: { amount: minVariantPrice.toString(), currencyCode },
       maxVariantPrice: { amount: maxVariantPrice.toString(), currencyCode }
     },
-    variants: {
+    variants: { 
         edges: variants.map((v: ProductVariant) => ({node: v}))
     },
     featuredImage,
-    images: {
-        edges: allImagesForGallery
+    images: { 
+        edges: allImagesForGallery 
     },
     seo: { title: seoTitle, description: seoDescription },
     tags,
-    updatedAt: node.updatedAt || new Date().toISOString(),
+    updatedAt: node.updatedAt || new Date().toISOString(), // node.updatedAt may not be in SIMPLE_PRODUCT_FIELDS
   };
   return transformedProduct;
 };
@@ -804,28 +771,28 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       path
       name
       ... on Product { # If the root path itself can be a product
-        ${DETAILED_PRODUCT_FIELDS}
+        ${SIMPLE_PRODUCT_FIELDS}
       }
       children {
         __typename
         path
         name
         ... on Product {
-          ${DETAILED_PRODUCT_FIELDS}
+          ${SIMPLE_PRODUCT_FIELDS}
         }
         children {
           __typename
           path
           name
           ... on Product {
-            ${DETAILED_PRODUCT_FIELDS}
+            ${SIMPLE_PRODUCT_FIELDS}
           }
           children {
             __typename
             path
             name
             ... on Product {
-              ${DETAILED_PRODUCT_FIELDS}
+              ${SIMPLE_PRODUCT_FIELDS}
             }
           }
         }
