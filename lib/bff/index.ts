@@ -95,41 +95,46 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   });
    if (minPrice === Infinity) minPrice = 0; // Ensure minPrice is not Infinity if no variants or prices
 
-  // Fallback for featuredImage: use the first image of the first variant, or a placeholder.
-  let firstVariantWithImage = node.variants?.find((v:any) => v.images && v.images.length > 0);
-  let featuredImageSource = firstVariantWithImage?.images[0];
-  let featuredImage: Image = featuredImageSource ?
-    {
-      url: featuredImageSource.url,
-      altText: featuredImageSource.altText || node.name || 'Product image',
-      width: featuredImageSource.width,
-      height: featuredImageSource.height
-    } :
-    { url: '', altText: 'Placeholder', width: 0, height: 0 };
+  const title = node.productNameFromComponent?.text || node.name || 'Untitled Product';
 
-  // If no image from variants, try from product components
-  if (!featuredImage.url && node.components) {
+  // featuredImage logic
+  let featuredImageSource: any = null;
+
+  // 1. Try from variants
+  const firstVariantWithImage = node.variants?.find((v: any) => v.images && v.images.length > 0);
+  if (firstVariantWithImage) {
+    featuredImageSource = firstVariantWithImage.images[0];
+  }
+
+  // 2. If not from variants, try from specific productImageFromComponent
+  if (!featuredImageSource && node.productImageFromComponent?.images?.length > 0) {
+    featuredImageSource = node.productImageFromComponent.images[0];
+  }
+
+  // 3. If still not found, try from generic components
+  if (!featuredImageSource && node.components) { // Added node.components check here
     const imageComponent = node.components?.find(
       (c: any) => (c.name === 'Images' || c.name === 'Image' || c.name === 'Featured Image' || c.type === 'images') &&
                    c.content?.images && c.content.images.length > 0
     );
     if (imageComponent) {
       featuredImageSource = imageComponent.content.images[0];
-      if (featuredImageSource) { // Ensure source is valid before assigning
-        featuredImage = {
-          url: featuredImageSource.url,
-          altText: featuredImageSource.altText || node.name || 'Product image',
-          width: featuredImageSource.width,
-          height: featuredImageSource.height
-        };
-      }
     }
   }
-  // Ensure placeholder if still no image
+
+  let featuredImage: Image = { url: '', altText: 'Placeholder', width: 0, height: 0 };
+  if (featuredImageSource) {
+    featuredImage = {
+      url: featuredImageSource.url,
+      altText: featuredImageSource.altText || title || 'Product image', // Use derived title
+      width: featuredImageSource.width || 0,
+      height: featuredImageSource.height || 0
+    };
+  }
+  // Ensure placeholder if URL is still missing after all checks
   if (!featuredImage.url) {
       featuredImage = { url: '', altText: 'Placeholder', width: 0, height: 0 };
   }
-
 
   // Fallback for images (gallery): use all images from all variants.
   let allVariantImages = node.variants?.flatMap((v: any) => v.images?.map((img: any) => ({ node: { url: img.url, altText: img.altText || node.name || 'Product image' } })) || []) || [];
@@ -148,7 +153,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     }
   }
   
-  const description = node.name || 'Product description placeholder.'; // Basic fallback
+  const description = title || 'Product description placeholder.'; // Use derived title for description too if node.name was missing
   const descriptionHtml = `<p>${description}</p>`;
 
   const productOptions: ProductOption[] = []; // Placeholder, as attributes not fully queried/processed for options
@@ -167,14 +172,14 @@ const transformCrystallizeProduct = (node: any): Product | null => {
     });
   }
 
-  const seoTitle = node.name || 'Product';
+  const seoTitle = title || 'Product'; // Use derived title
   const seoDescription = description;
 
   return {
     id: node.id,
     handle: node.path,
     availableForSale: variants.some((v: any) => v.availableForSale),
-    title: node.name,
+    title, // Use derived title
     description,
     descriptionHtml,
     options: productOptions, // Simplified based on available variant attributes
@@ -879,12 +884,18 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
       name
       ... on Product {
         ${PRODUCT_COMMON_QUERY_FIELDS}
+        productNameFromComponent: component(id: "product-name") {
+          ... on SingleLineContent { text }
+        }
+        productImageFromComponent: component(id: "product-image") {
+          ... on ImageContent { images { url altText width height } }
+        }
         components {
           id
           name
           type
           content {
-            ... on ImageContent { images { url altText } }
+            ... on ImageContent { images { url altText width height } }
             ... on NumericContent { number }
             ... on SingleLineContent { text }
           }
@@ -896,12 +907,18 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
         name
         ... on Product {
           ${PRODUCT_COMMON_QUERY_FIELDS}
+          productNameFromComponent: component(id: "product-name") {
+            ... on SingleLineContent { text }
+          }
+          productImageFromComponent: component(id: "product-image") {
+            ... on ImageContent { images { url altText width height } }
+          }
           components {
             id
             name
             type
             content {
-              ... on ImageContent { images { url altText } }
+              ... on ImageContent { images { url altText width height } }
               ... on NumericContent { number }
               ... on SingleLineContent { text }
             }
@@ -913,12 +930,18 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
           name
           ... on Product {
             ${PRODUCT_COMMON_QUERY_FIELDS}
+            productNameFromComponent: component(id: "product-name") {
+              ... on SingleLineContent { text }
+            }
+            productImageFromComponent: component(id: "product-image") {
+              ... on ImageContent { images { url altText width height } }
+            }
             components {
               id
               name
               type
               content {
-                ... on ImageContent { images { url altText } }
+                ... on ImageContent { images { url altText width height } }
                 ... on NumericContent { number }
                 ... on SingleLineContent { text }
               }
@@ -930,12 +953,18 @@ const DESCENDANT_PRODUCTS_QUERY = /* GraphQL */ `
             name
             ... on Product {
               ${PRODUCT_COMMON_QUERY_FIELDS}
+              productNameFromComponent: component(id: "product-name") {
+                ... on SingleLineContent { text }
+              }
+              productImageFromComponent: component(id: "product-image") {
+                ... on ImageContent { images { url altText width height } }
+              }
               components {
                 id
                 name
                 type
                 content {
-                  ... on ImageContent { images { url altText } }
+                  ... on ImageContent { images { url altText width height } }
                   ... on NumericContent { number }
                   ... on SingleLineContent { text }
                 }
