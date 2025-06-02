@@ -216,7 +216,7 @@ const transformCrystallizeProduct = (node: any): Product | null => {
   const transformedProduct: Product = {
     id: node.id,
     handle: node.path,
-    availableForSale: variants.some(v => v.availableForSale),
+    availableForSale: variants.some((v: ProductVariant) => v.availableForSale),
     title: productName,
     description,
     descriptionHtml,
